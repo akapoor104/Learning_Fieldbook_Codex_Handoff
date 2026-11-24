@@ -1,0 +1,24 @@
+{
+  "revision": "",
+  "selected": "home",
+  "hosts": {
+    "home": {
+      "state": "not-run",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "render": {
+      "state": "not-run",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "google": {
+      "state": "not-run",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    }
+  }
+}

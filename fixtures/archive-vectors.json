@@ -1,0 +1,76 @@
+{
+  "wire_format": "Behavior vectors. Produce authentic encrypted archives with the actual versioned exporter or published fixtures before claiming restore coverage.",
+  "legacy_v4_text": "I wrote, “Try again—then listen.”\nKeep this line exactly.",
+  "versions": [
+    {
+      "id": "v1",
+      "schema": 1,
+      "given": "One old stored picture or link and the original recorder.",
+      "expected": [
+        "One ordered asset with original recorder",
+        "Known family visibility preserved",
+        "Old rendition marked only where supported by provenance"
+      ]
+    },
+    {
+      "id": "v2",
+      "schema": 2,
+      "given": "A journal with family and diary entries before maps.",
+      "expected": [
+        "Moment and asset IDs retained",
+        "Map and photo-inbox collections initialized empty"
+      ]
+    },
+    {
+      "id": "v3",
+      "schema": 3,
+      "given": "A map with creative edges, saved steps and no reliable root.",
+      "expected": [
+        "One deterministic project root",
+        "Existing nodes ordered by creation time then ID",
+        "Old creative edges preserved",
+        "New handoff contracts empty"
+      ]
+    },
+    {
+      "id": "v4",
+      "schema": 4,
+      "given": "A dated local paragraph and earlier evidence under a writing section.",
+      "expected": [
+        "Original node, authorship, and legacy text preserved verbatim",
+        "Docs pointer empty",
+        "No outbound lookup"
+      ]
+    },
+    {
+      "id": "v5",
+      "schema": 5,
+      "given": "Month-only award, extra project link, writing pointer, frozen PDF and a portfolio item.",
+      "expected": [
+        "Date precision, references and asset digests unchanged",
+        "Trash/recovery collections initialized empty"
+      ]
+    },
+    {
+      "id": "v6",
+      "schema": 6,
+      "given": "A trashed project, recovered branch, prior consent and later withdrawal.",
+      "expected": [
+        "Trashed state preserved",
+        "Later revocation wins or access stays inactive if recency unknown",
+        "Stable endpoints, checks and original authors survive"
+      ]
+    },
+    {
+      "id": "v7",
+      "schema": 7,
+      "given": "P2 informs two builds, an unexpected failure is selected, one archived trial was revived and one source was corrected.",
+      "expected": [
+        "Stable IDs, observed revisions and original outcomes survive",
+        "Both build links and revival links resolve in the same project",
+        "Selections and latest sharing revocations survive",
+        "Earlier archives initialize empty trial collections without inferred evidence"
+      ]
+    }
+  ]
+}

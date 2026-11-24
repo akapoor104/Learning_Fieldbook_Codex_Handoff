@@ -1,0 +1,177 @@
+{
+  "purpose": "Independent, invented fixture. Symbolic IDs map to app-generated IDs in the adapter.",
+  "households": [
+    "A",
+    "B"
+  ],
+  "actors": [
+    {
+      "id": "learner",
+      "household": "A",
+      "role": "learner"
+    },
+    {
+      "id": "parent-one",
+      "household": "A",
+      "role": "guardian"
+    },
+    {
+      "id": "parent-two",
+      "household": "A",
+      "role": "guardian"
+    },
+    {
+      "id": "relative",
+      "household": "A",
+      "role": "guest"
+    },
+    {
+      "id": "other-learner",
+      "household": "B",
+      "role": "learner"
+    },
+    {
+      "id": "other-parent",
+      "household": "B",
+      "role": "guardian"
+    }
+  ],
+  "moments": [
+    {
+      "id": "m1",
+      "learner": "learner",
+      "recorder": "learner",
+      "title": "Different starting edges",
+      "project": "Math club",
+      "visibility": "family",
+      "activity_date": "2026-01-10",
+      "skills": []
+    },
+    {
+      "id": "m2",
+      "learner": "learner",
+      "recorder": "learner",
+      "title": "Line up the strips",
+      "project": "Math club",
+      "visibility": "family",
+      "activity_date": "2026-01-11",
+      "skills": [
+        "skill-test"
+      ]
+    },
+    {
+      "id": "m3",
+      "learner": "learner",
+      "recorder": "learner",
+      "title": "Turn past the tape",
+      "project": "Robotics",
+      "visibility": "family",
+      "activity_date": "2026-01-12",
+      "skills": []
+    },
+    {
+      "id": "m4",
+      "learner": "learner",
+      "recorder": "learner",
+      "title": "Try a smaller turn",
+      "project": "Robotics",
+      "visibility": "family",
+      "activity_date": "2026-01-13",
+      "skills": [
+        "skill-test"
+      ]
+    },
+    {
+      "id": "m5",
+      "learner": "learner",
+      "recorder": "parent-one",
+      "title": "Tournament attempt",
+      "project": "Open activity",
+      "visibility": "family",
+      "activity_date": "2026-01-14",
+      "skills": []
+    },
+    {
+      "id": "m6",
+      "learner": "learner",
+      "recorder": "learner",
+      "title": "DIARY-ONLY-287",
+      "project": null,
+      "visibility": "diary",
+      "activity_date": "2026-01-15",
+      "skills": []
+    }
+  ],
+  "highlights": [
+    {
+      "id": "hl1",
+      "source": "m5",
+      "visible_text": "I tried a second round.",
+      "asset_ids": [
+        "photo"
+      ]
+    }
+  ],
+  "comments": [
+    {
+      "id": "cg1",
+      "actor": "parent-one",
+      "target": "m5",
+      "text": "I noticed the second attempt."
+    },
+    {
+      "id": "cr1",
+      "actor": "relative",
+      "target": "hl1",
+      "text": "What would you try next?"
+    }
+  ],
+  "grants": [
+    {
+      "id": "g1",
+      "actor": "relative",
+      "active": true,
+      "highlight": "hl1",
+      "asset_ids": [
+        "photo"
+      ]
+    },
+    {
+      "id": "g2",
+      "actor": "relative",
+      "active": false,
+      "highlight": "hl1",
+      "asset_ids": [
+        "letter"
+      ]
+    }
+  ],
+  "frozen_editions": [
+    {
+      "id": "k1",
+      "kind": "term_record",
+      "version": 1,
+      "moments": [
+        "m2",
+        "m4"
+      ],
+      "approved_text": "I tried the same test twice."
+    }
+  ],
+  "tournament_assets": [
+    "photo",
+    "letter",
+    "game",
+    "demo",
+    "recording-link"
+  ],
+  "external_links": [
+    {
+      "id": "recording-link",
+      "mode": "link_only",
+      "url": "https://example.invalid/fictional-full-recording",
+      "label": "Full recording",
+      "offline_available": false
+    }
+  ]
+}

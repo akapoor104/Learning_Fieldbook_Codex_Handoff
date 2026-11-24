@@ -1,0 +1,64 @@
+{
+  "id": "seed-swap",
+  "question": "How can a visitor choose one packet to plant?",
+  "revision": 12,
+  "root": "root",
+  "nodes": [
+    {
+      "id": "root",
+      "parent": null,
+      "order": 0,
+      "title": "Neighborhood seed swap",
+      "code": "P0"
+    },
+    {
+      "id": "signs",
+      "parent": "root",
+      "order": 0,
+      "title": "Make a welcome sign",
+      "code": "Q1"
+    },
+    {
+      "id": "packets",
+      "parent": "root",
+      "order": 1,
+      "title": "Prepare the packets",
+      "code": "Q2"
+    },
+    {
+      "id": "fold",
+      "parent": "packets",
+      "order": 0,
+      "title": "Fold a packet",
+      "code": "Q3"
+    },
+    {
+      "id": "label",
+      "parent": "packets",
+      "order": 1,
+      "title": "Label a packet",
+      "code": "Q4"
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "inside",
+      "from": "fold",
+      "to": "label"
+    },
+    {
+      "id": "outside",
+      "from": "label",
+      "to": "signs"
+    }
+  ],
+  "collapsed": [
+    "packets"
+  ],
+  "unselected": {
+    "comment": "COMMENT-ONLY-503",
+    "removed": "REMOVED-ONLY-871",
+    "diary": "DIARY-ONLY-287",
+    "file": "LETTER-ONLY-622"
+  }
+}

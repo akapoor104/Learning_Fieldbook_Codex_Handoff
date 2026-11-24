@@ -1,0 +1,473 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Learning Fieldbook starter contracts",
+    "version": "0.8.1",
+    "description": "Design v0.8. B0 and the two worked planning interactions only. Promote into api/openapi.yaml as the full implementation grows. Cookie/header names and status-body literals are handoff conventions."
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "processHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Process is running or database and schema are ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Status"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": "ok"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "schemaReadiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Process is running or database and schema are ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Status"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": "ok"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or schema unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Status"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": "unavailable"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maps/{map}/splits": {
+      "post": {
+        "operationId": "splitIdea",
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Authorized route map ID."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Unique per actor and command. Check authentication and access on retries."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "First commit and identical authorized retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SplitResult"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "New resource or operation receipt URI."
+              }
+            }
+          },
+          "404": {
+            "description": "Absent or inaccessible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision or changed content for a used key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maps/{map}/graph": {
+      "get": {
+        "operationId": "readNeighborhood",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Authorized route map ID."
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Selected node"
+          },
+          {
+            "name": "layers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated parts, ideas, handoffs or evidence"
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque scoped token for the next page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Focused authorized neighborhood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Neighborhood"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Absent or inaccessible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fieldbook_session"
+      },
+      "csrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token"
+      }
+    },
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "SplitRequest": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "titles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            }
+          }
+        },
+        "required": [
+          "parent_id",
+          "expected_revision",
+          "titles"
+        ]
+      },
+      "SplitResult": {
+        "type": "object",
+        "properties": {
+          "map_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "selected_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "map_revision",
+          "created_ids",
+          "selected_id"
+        ]
+      },
+      "GraphNode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "source"
+        ]
+      },
+      "GraphEdge": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "enum": [
+              "contains",
+              "inspired_by",
+              "combined_into",
+              "feeds",
+              "supported_by",
+              "feedback_next"
+            ]
+          },
+          "from": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "to": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "contract_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "from",
+          "to"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "contains"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "order"
+              ]
+            },
+            "else": {
+              "required": [
+                "label"
+              ]
+            }
+          }
+        ]
+      },
+      "Neighborhood": {
+        "type": "object",
+        "properties": {
+          "map_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "selected_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "continuation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            }
+          }
+        },
+        "required": [
+          "map_revision",
+          "selected_id",
+          "continuation",
+          "nodes",
+          "edges"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "description": "Error DTO with useful field errors. No hidden object details. The implementation documents its concrete envelope."
+      }
+    }
+  }
+}

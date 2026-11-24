@@ -1,0 +1,94 @@
+{
+  "aliases": {
+    "map": "7ba15bb9-f030-570b-868d-0621609d6753",
+    "request": "6378786d-7e5a-5534-9205-37b1a38b1c1e",
+    "strip": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+    "cells": "291c047f-6a2d-5398-95d3-88f4dfc53460",
+    "taps": "81f5bd87-35c8-56d3-861f-10e1e52fa9df",
+    "game": "d5759aaf-747d-5992-b008-38af13913746",
+    "maker": "ca9dc32e-b584-56da-9c96-0907ef58a443",
+    "lesson": "e45841c7-1120-54a5-b28b-72e80e710f01",
+    "p1": "77009775-c174-5bba-b6f5-204506919947",
+    "p2": "d8414155-79b5-5011-9012-e2dfa9377305",
+    "h1": "e2af88c6-911e-5b99-986a-00e53fff423f",
+    "e1": "a374cad7-5285-5e9c-827b-389e61766a4e"
+  },
+  "split_request": {
+    "parent_id": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+    "expected_revision": 12,
+    "titles": [
+      "Draw the cells",
+      "Mark the taps"
+    ]
+  },
+  "split_response": {
+    "map_revision": 13,
+    "created_ids": [
+      "291c047f-6a2d-5398-95d3-88f4dfc53460",
+      "81f5bd87-35c8-56d3-861f-10e1e52fa9df"
+    ],
+    "selected_id": "291c047f-6a2d-5398-95d3-88f4dfc53460"
+  },
+  "graph_response": {
+    "map_revision": 13,
+    "selected_id": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+    "continuation": null,
+    "nodes": [
+      {
+        "id": "d5759aaf-747d-5992-b008-38af13913746",
+        "kind": "project",
+        "label": "Fraction rhythm game",
+        "source": "learner"
+      },
+      {
+        "id": "ca9dc32e-b584-56da-9c96-0907ef58a443",
+        "kind": "idea",
+        "label": "Make the beat pattern",
+        "source": "learner"
+      },
+      {
+        "id": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+        "kind": "idea",
+        "label": "Draw the beat strip",
+        "source": "learner"
+      },
+      {
+        "id": "e45841c7-1120-54a5-b28b-72e80e710f01",
+        "kind": "moment",
+        "label": "Club lesson",
+        "source": "journal"
+      }
+    ],
+    "edges": [
+      {
+        "id": "77009775-c174-5bba-b6f5-204506919947",
+        "type": "contains",
+        "from": "d5759aaf-747d-5992-b008-38af13913746",
+        "to": "ca9dc32e-b584-56da-9c96-0907ef58a443",
+        "order": 0
+      },
+      {
+        "id": "d8414155-79b5-5011-9012-e2dfa9377305",
+        "type": "contains",
+        "from": "d5759aaf-747d-5992-b008-38af13913746",
+        "to": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+        "order": 1
+      },
+      {
+        "id": "e2af88c6-911e-5b99-986a-00e53fff423f",
+        "type": "feeds",
+        "from": "ca9dc32e-b584-56da-9c96-0907ef58a443",
+        "to": "47d01288-0826-5d4f-83cd-be6f2f1d01d6",
+        "label": "beat-pattern v1",
+        "contract_revision": 1
+      },
+      {
+        "id": "a374cad7-5285-5e9c-827b-389e61766a4e",
+        "type": "supported_by",
+        "from": "d5759aaf-747d-5992-b008-38af13913746",
+        "to": "e45841c7-1120-54a5-b28b-72e80e710f01",
+        "label": "club observation"
+      }
+    ]
+  }
+}

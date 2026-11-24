@@ -1,0 +1,32 @@
+{
+  "product_design": "0.8",
+  "handoff_revision": 1,
+  "handoff_edition": "0.8.1",
+  "household_archive_schema": 7,
+  "references": [
+    {
+      "file": "Learning_Fieldbook_Design_Spec_v0.8.md",
+      "sha256": "49c04cbeeb7f8fb48e925bbe392764229b2ff65e2143987655707b2601ecd4c4",
+      "bytes": 152370,
+      "role": "Pinned design v0.8"
+    },
+    {
+      "file": "Learning_Fieldbook_Sample_Worksheet_v0.7.pdf",
+      "sha256": "a03cba4600596e284bd546cb6f658fc30808e14279c4104985b298460ce584b6",
+      "bytes": 118056,
+      "role": "Working worksheet example from design v0.7"
+    },
+    {
+      "file": "Learning_Fieldbook_Visual_Walkthrough_v0.8.pdf",
+      "sha256": "e24a6ae9a59b2a68ba78980f2dc5ae3ca017be3c1e0616c6467cf476780b267a",
+      "bytes": 764243,
+      "role": "Pinned design v0.8"
+    },
+    {
+      "file": "Learning_Fieldbook_Workflow_Review_v0.6.md",
+      "sha256": "5a837521eda6c0be4706de5e4fdefe721e60e740527bc556d81932244e991c4a",
+      "bytes": 7622,
+      "role": "Historical workflow observations and pilot choices"
+    }
+  ]
+}

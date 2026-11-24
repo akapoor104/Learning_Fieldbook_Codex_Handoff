@@ -1,0 +1,47 @@
+{
+  "focus": {
+    "id": "seed-group",
+    "field": "math",
+    "mechanism": "group",
+    "minutes": 10,
+    "materials": [
+      "paper"
+    ],
+    "requested_field": null
+  },
+  "cards": [
+    {
+      "id": "rhythm",
+      "field": "music",
+      "version": 1,
+      "mechanisms": [
+        "group"
+      ],
+      "minutes": 5,
+      "materials": [
+        "paper"
+      ],
+      "bridge": "A repeating bar keeps the whole steady.",
+      "limit": "Count the time between beats as well as the taps.",
+      "test": "Draw four boxes and mark beats 1 and 3."
+    },
+    {
+      "id": "wayfinding",
+      "field": "scouting",
+      "version": 1,
+      "mechanisms": [
+        "navigate"
+      ],
+      "minutes": 8,
+      "materials": [
+        "paper"
+      ],
+      "bridge": "Put a cue where a choice happens.",
+      "limit": "A cue can point two ways.",
+      "test": "Draw one fork and ask which path a reader takes."
+    }
+  ],
+  "dismissed": [],
+  "kept": [],
+  "last_kept": {}
+}

@@ -1,0 +1,71 @@
+{
+  "purpose": "Fictional observations. Short aliases stand for stable UUIDs in the Rust application.",
+  "projects": {
+    "A": [
+      {
+        "id": "P1",
+        "kind": "pre",
+        "observations": [
+          {
+            "revision": 1,
+            "signal": "Matched",
+            "text": "Two of three chose another round.",
+            "lesson": "Keep rounds short.",
+            "setback": "",
+            "at": "2026-10-12"
+          }
+        ]
+      },
+      {
+        "id": "P2",
+        "kind": "pre",
+        "observations": [
+          {
+            "revision": 1,
+            "signal": "Missed",
+            "text": "One of three began on the arrow.",
+            "lesson": "Try a count-in.",
+            "setback": "",
+            "at": "2026-10-13"
+          }
+        ]
+      },
+      {
+        "id": "P3",
+        "kind": "pre",
+        "observations": [
+          {
+            "revision": 1,
+            "signal": "Unclear",
+            "text": "One player stopped before the count-in ended.",
+            "lesson": "Try a clearer cue.",
+            "setback": "",
+            "at": "2026-10-14"
+          }
+        ]
+      },
+      {
+        "id": "draft",
+        "kind": "pre",
+        "observations": []
+      }
+    ],
+    "B": [
+      {
+        "id": "foreign",
+        "kind": "pre",
+        "observations": [
+          {
+            "revision": 1,
+            "signal": "Missed",
+            "text": "A different project observation.",
+            "lesson": "Keep this in its own project.",
+            "setback": "",
+            "at": "2026-10-14"
+          }
+        ]
+      }
+    ],
+    "legacy": []
+  }
+}

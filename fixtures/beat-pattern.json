@@ -1,0 +1,25 @@
+{
+  "contract_id": "beat-pattern",
+  "revision": 1,
+  "meaning": "Tap positions are one-based within one repeating bar.",
+  "valid": {
+    "beats_per_bar": 4,
+    "tap_beats": [
+      1,
+      3
+    ]
+  },
+  "invalid": {
+    "beats_per_bar": 4,
+    "tap_beats": [
+      0,
+      2
+    ]
+  },
+  "consumer_output_valid": [
+    true,
+    false,
+    true,
+    false
+  ]
+}

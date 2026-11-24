@@ -1,0 +1,34 @@
+[
+  {
+    "id": "photo",
+    "path": "media/practice-photo.jpg",
+    "mime": "image/jpeg",
+    "byte_length": 2302,
+    "sha256": "7a7ecb6778ef1b3adfa58fcddd43c62a122380f4042a7e2998c5d8d596d8d934",
+    "tournament_moment": "m5"
+  },
+  {
+    "id": "letter",
+    "path": "media/teacher-note.pdf",
+    "mime": "application/pdf",
+    "byte_length": 1478,
+    "sha256": "26ca6c63ef223218ce609e7e1e3b910b1be3a3e9fe1e683728ad2215efc57feb",
+    "tournament_moment": "m5"
+  },
+  {
+    "id": "game",
+    "path": "media/game-project.zip",
+    "mime": "application/zip",
+    "byte_length": 173,
+    "sha256": "8990ab05db49637168aa8d7742c9aa8f667bec5b64a59e944376a4794ae720ff",
+    "tournament_moment": "m5"
+  },
+  {
+    "id": "demo",
+    "path": "media/short-demo.mp4",
+    "mime": "video/mp4",
+    "byte_length": 1733,
+    "sha256": "dd2488ce16f2208d2a5a92d8a2254de3303c031c964e01e5b3dc22878a4bef4d",
+    "tournament_moment": "m5"
+  }
+]

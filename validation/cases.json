@@ -1,0 +1,1079 @@
+[
+  {
+    "id": "lens-match",
+    "ticket": "B12",
+    "input": {
+      "focus": {
+        "id": "seed-group",
+        "field": "math",
+        "mechanism": "group",
+        "minutes": 10,
+        "materials": [
+          "paper"
+        ],
+        "requested_field": null
+      },
+      "cards": [
+        {
+          "id": "rhythm",
+          "field": "music",
+          "version": 1,
+          "mechanisms": [
+            "group"
+          ],
+          "minutes": 5,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "A repeating bar keeps the whole steady.",
+          "limit": "Count the time between beats as well as the taps.",
+          "test": "Draw four boxes and mark beats 1 and 3."
+        },
+        {
+          "id": "wayfinding",
+          "field": "scouting",
+          "version": 1,
+          "mechanisms": [
+            "navigate"
+          ],
+          "minutes": 8,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "Put a cue where a choice happens.",
+          "limit": "A cue can point two ways.",
+          "test": "Draw one fork and ask which path a reader takes."
+        }
+      ],
+      "dismissed": [],
+      "kept": [],
+      "last_kept": {}
+    },
+    "expected": {
+      "candidate": "rhythm",
+      "version": 1,
+      "external_calls": 0
+    },
+    "measures": "One eligible music card for grouping."
+  },
+  {
+    "id": "lens-dismissed",
+    "ticket": "B12",
+    "input": {
+      "focus": {
+        "id": "seed-group",
+        "field": "math",
+        "mechanism": "group",
+        "minutes": 10,
+        "materials": [
+          "paper"
+        ],
+        "requested_field": null
+      },
+      "cards": [
+        {
+          "id": "rhythm",
+          "field": "music",
+          "version": 1,
+          "mechanisms": [
+            "group"
+          ],
+          "minutes": 5,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "A repeating bar keeps the whole steady.",
+          "limit": "Count the time between beats as well as the taps.",
+          "test": "Draw four boxes and mark beats 1 and 3."
+        },
+        {
+          "id": "wayfinding",
+          "field": "scouting",
+          "version": 1,
+          "mechanisms": [
+            "navigate"
+          ],
+          "minutes": 8,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "Put a cue where a choice happens.",
+          "limit": "A cue can point two ways.",
+          "test": "Draw one fork and ask which path a reader takes."
+        }
+      ],
+      "dismissed": [
+        {
+          "focus": "seed-group",
+          "id": "rhythm",
+          "version": 1
+        }
+      ],
+      "kept": [],
+      "last_kept": {}
+    },
+    "expected": {
+      "candidate": null,
+      "version": null,
+      "external_calls": 0
+    },
+    "measures": "Dismiss a card version for this focus. A changed version can later be considered."
+  },
+  {
+    "id": "lens-new-field",
+    "ticket": "B12",
+    "input": {
+      "focus": {
+        "id": "seed-route",
+        "field": "games",
+        "mechanism": "navigate",
+        "minutes": 10,
+        "materials": [
+          "paper"
+        ],
+        "requested_field": null
+      },
+      "cards": [
+        {
+          "id": "rhythm",
+          "field": "music",
+          "version": 1,
+          "mechanisms": [
+            "group"
+          ],
+          "minutes": 5,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "A repeating bar keeps the whole steady.",
+          "limit": "Count the time between beats as well as the taps.",
+          "test": "Draw four boxes and mark beats 1 and 3."
+        },
+        {
+          "id": "wayfinding",
+          "field": "scouting",
+          "version": 1,
+          "mechanisms": [
+            "navigate"
+          ],
+          "minutes": 8,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "Put a cue where a choice happens.",
+          "limit": "A cue can point two ways.",
+          "test": "Draw one fork and ask which path a reader takes."
+        }
+      ],
+      "dismissed": [],
+      "kept": [],
+      "last_kept": {}
+    },
+    "expected": {
+      "candidate": "wayfinding",
+      "version": 1,
+      "external_calls": 0
+    },
+    "measures": "A new field works without past journal history."
+  },
+  {
+    "id": "lens-named",
+    "ticket": "B12",
+    "input": {
+      "focus": {
+        "id": "seed-group",
+        "field": "math",
+        "mechanism": "group",
+        "minutes": 10,
+        "materials": [
+          "paper"
+        ],
+        "requested_field": "scouting"
+      },
+      "cards": [
+        {
+          "id": "rhythm",
+          "field": "music",
+          "version": 1,
+          "mechanisms": [
+            "group"
+          ],
+          "minutes": 5,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "A repeating bar keeps the whole steady.",
+          "limit": "Count the time between beats as well as the taps.",
+          "test": "Draw four boxes and mark beats 1 and 3."
+        },
+        {
+          "id": "wayfinding",
+          "field": "scouting",
+          "version": 1,
+          "mechanisms": [
+            "navigate"
+          ],
+          "minutes": 8,
+          "materials": [
+            "paper"
+          ],
+          "bridge": "Put a cue where a choice happens.",
+          "limit": "A cue can point two ways.",
+          "test": "Draw one fork and ask which path a reader takes."
+        }
+      ],
+      "dismissed": [],
+      "kept": [],
+      "last_kept": {}
+    },
+    "expected": {
+      "candidate": null,
+      "version": null,
+      "external_calls": 0
+    },
+    "measures": "A named unsuitable field cannot override the mechanism filter."
+  },
+  {
+    "id": "journal-retry",
+    "ticket": "B2",
+    "input": {
+      "fixture": "household",
+      "actor": "learner",
+      "actions": [
+        "save one sentence twice using the same submission key",
+        "reload moment"
+      ]
+    },
+    "expected": {
+      "new_moments": 1,
+      "same_id": true,
+      "voice": "student",
+      "added_assets": 0
+    },
+    "measures": "Use real create, retry and reload entry points."
+  },
+  {
+    "id": "photo-match",
+    "ticket": "B3",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "stage photo on guardian account",
+        "interrupt and resume",
+        "match on learner account twice",
+        "unmatch"
+      ]
+    },
+    "expected": {
+      "new_originals": 1,
+      "matches_before_unmatch": 1,
+      "matches_after_unmatch": 0,
+      "uploader": "parent-one",
+      "original_hash_preserved": true
+    },
+    "measures": "User initiated matching of a single immutable original."
+  },
+  {
+    "id": "diary-scope",
+    "ticket": "B4",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "read ordinary parent home and search",
+        "elevate parent-one then sign out",
+        "elevate parent-two then expire",
+        "view access history as learner"
+      ]
+    },
+    "expected": {
+      "ordinary_hits": 0,
+      "guardian_events": [
+        "parent-one",
+        "parent-two"
+      ],
+      "expired_can_read": false,
+      "learner_can_read": true
+    },
+    "measures": "Count the actual sources and access events per actor."
+  },
+  {
+    "id": "guest-revoked",
+    "ticket": "B5",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "open selected photo and unselected PDF as relative",
+        "revoke active grant",
+        "open photo, post comment and check list as same guest"
+      ]
+    },
+    "expected": {
+      "before": {
+        "photo": 200,
+        "letter": 404
+      },
+      "after": {
+        "photo": 404,
+        "comment": 404,
+        "visible_highlights": 0
+      }
+    },
+    "measures": "Use the actual response codes for signed-in guest. Do not follow a public media URL."
+  },
+  {
+    "id": "ai-cancel",
+    "ticket": "B8",
+    "input": {
+      "actors": [
+        "guardian",
+        "learner"
+      ],
+      "provider": "recording fake",
+      "actions": [
+        "cancel preview",
+        "edit and reconfirm excerpt",
+        "retry same send"
+      ],
+      "approved_text": "Can I make the beat easier to hear?"
+    },
+    "expected": {
+      "canceled_calls": 0,
+      "total_calls": 1,
+      "personal_fields": {
+        "excerpt": "Can I make the beat easier to hear?"
+      },
+      "attachments": 0
+    },
+    "measures": "Project the captured fake provider request and count requests at the boundary."
+  },
+  {
+    "id": "split-retry",
+    "ticket": "B15",
+    "input": {
+      "initial_revision": 12,
+      "parent": "strip",
+      "titles": [
+        "Draw the cells",
+        "Mark the taps"
+      ],
+      "actions": [
+        "commit",
+        "replay identical key and body",
+        "reuse key with different titles"
+      ]
+    },
+    "expected": {
+      "statuses": [
+        201,
+        201,
+        409
+      ],
+      "created_children": 2,
+      "same_ids": true,
+      "final_revision": 13,
+      "first_selected": true
+    },
+    "measures": "Normalize generated UUIDs by equality and selection, never by invented success."
+  },
+  {
+    "id": "required-cycle",
+    "ticket": "B16",
+    "input": {
+      "nodes": [
+        "a",
+        "b",
+        "c"
+      ],
+      "existing": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "b",
+          "c"
+        ]
+      ],
+      "requested": [
+        "c",
+        "a"
+      ],
+      "actions": [
+        "connect required same-pass",
+        "connect next revision feedback"
+      ]
+    },
+    "expected": {
+      "required_rejected": true,
+      "required_links": 2,
+      "next_feedback_links": 1
+    },
+    "measures": "Read persisted edge types after both commands."
+  },
+  {
+    "id": "sample-v-actual",
+    "ticket": "B17",
+    "input": {
+      "fixture": "beat-pattern",
+      "actions": [
+        "run valid sample",
+        "run zero-based sample",
+        "inspect actual checks",
+        "connect real producer and run consumer",
+        "revise used contract"
+      ]
+    },
+    "expected": {
+      "sample_pass": true,
+      "zero_based_pass": false,
+      "actual_before_connect": 0,
+      "observed_cells": [
+        true,
+        false,
+        true,
+        false
+      ],
+      "actual_after_connect": 1,
+      "old_result_retained": true,
+      "current_status": "Needs review"
+    },
+    "measures": "Integration includes an actual producer run and actual consuming output."
+  },
+  {
+    "id": "essay-legacy",
+    "ticket": "B18",
+    "input": {
+      "schema": 4,
+      "text": "I wrote, “Try again—then listen.”\nKeep this line exactly.",
+      "actions": [
+        "restore legacy writing section",
+        "read same section"
+      ]
+    },
+    "expected": {
+      "preserved_text": "I wrote, “Try again—then listen.”\nKeep this line exactly.",
+      "docs_url": null,
+      "external_calls": 0
+    },
+    "measures": "Compare content byte-for-byte via the real migration."
+  },
+  {
+    "id": "graph-privacy",
+    "ticket": "B19",
+    "input": {
+      "seed": "focus with 26 authorized neighbors and one private source",
+      "actions": [
+        "load first page",
+        "follow continuation",
+        "inspect graph and list"
+      ]
+    },
+    "expected": {
+      "first_page_neighbors": 24,
+      "union_visible_neighbors": 26,
+      "private_labels": 0,
+      "hidden_edges": 0,
+      "duplicates": 0,
+      "same_visible_ids": true
+    },
+    "measures": "Measure authorized nodes, flags and continuation from the API and both frontends."
+  },
+  {
+    "id": "portfolio-withdraw",
+    "ticket": "B20",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "link m2 to a second project",
+        "select twice",
+        "withdraw selection"
+      ]
+    },
+    "expected": {
+      "new_before_withdraw": 1,
+      "active_selection": 0,
+      "original_exists": true,
+      "linked_projects": 2
+    },
+    "measures": "Verify each fact by reopening the stored source."
+  },
+  {
+    "id": "restore-revoked",
+    "ticket": "B22",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "snapshot",
+        "revoke g1",
+        "trash then restore project",
+        "restore snapshot to fresh instance and merge latest audit"
+      ]
+    },
+    "expected": {
+      "guest_visible_highlights": 0,
+      "guest_photo_status": 404,
+      "family_original_hash_ok": true,
+      "diary_events_preserved": true
+    },
+    "measures": "A real clean-instance restore plus the independent revocation record."
+  },
+  {
+    "id": "print-branch",
+    "ticket": "B23",
+    "input": {
+      "fixture": "project",
+      "scope": "branch",
+      "root": "packets",
+      "include_handoffs": true,
+      "include_notes": false
+    },
+    "expected": {
+      "printed_codes": [
+        "Q2",
+        "Q3",
+        "Q4"
+      ],
+      "handoff_ids": [
+        "inside"
+      ],
+      "unselected_marker_hits": 0,
+      "blank_checklist_rows": 1
+    },
+    "measures": "Inspect rendered worksheet for branch order, both endpoints and marker absence."
+  },
+  {
+    "id": "paper-retry",
+    "ticket": "B23",
+    "input": {
+      "fixture": "project",
+      "code": "Q4",
+      "actions": [
+        "print",
+        "rename and reorder Q4",
+        "mark done",
+        "replay",
+        "reopen",
+        "undo",
+        "redo"
+      ]
+    },
+    "expected": {
+      "same_item": true,
+      "states": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "new_moments": 0,
+      "new_portfolio_items": 0,
+      "new_passed_checks": 0
+    },
+    "measures": "Read durable item state after each step."
+  },
+  {
+    "id": "restore-corrupt",
+    "ticket": "B10",
+    "input": {
+      "fixture": "household",
+      "actions": [
+        "export clean base",
+        "corrupt one copied file",
+        "attempt fresh-destination restore"
+      ]
+    },
+    "expected": {
+      "restore_accepted": false,
+      "destination_activated": false,
+      "source_unchanged": true,
+      "last_good_archive_retained": true
+    },
+    "measures": "Observe the restore result and re-open the unchanged source."
+  },
+  {
+    "id": "trials-many-builds",
+    "ticket": "B24",
+    "input": {
+      "project": "A",
+      "steps": [
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-V2",
+          "id": "V2",
+          "sources": [
+            [
+              "P2",
+              1
+            ],
+            [
+              "P3",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        }
+      ],
+      "read": [
+        "builds",
+        "destinations"
+      ]
+    },
+    "expected": {
+      "builds": {
+        "V1": [
+          [
+            "P1",
+            1
+          ],
+          [
+            "P2",
+            1
+          ]
+        ],
+        "V2": [
+          [
+            "P2",
+            1
+          ],
+          [
+            "P3",
+            1
+          ]
+        ]
+      },
+      "destinations": {
+        "P1": [
+          "V1"
+        ],
+        "P2": [
+          "V1",
+          "V2"
+        ],
+        "P3": [
+          "V2"
+        ]
+      }
+    },
+    "measures": "Read both prototype source lists and reverse links through the ordinary API. A missed and an inconclusive observation both contribute."
+  },
+  {
+    "id": "trials-atomic-retry",
+    "ticket": "B24",
+    "input": {
+      "project": "A",
+      "steps": [
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Altered body"
+        },
+        {
+          "op": "build",
+          "key": "request-invalid",
+          "id": "invalid",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "draft",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-foreignBuild",
+          "id": "foreignBuild",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "foreign",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-stale",
+          "id": "stale",
+          "sources": [
+            [
+              "P1",
+              95
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "build",
+          "key": "request-duplicated",
+          "id": "duplicated",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P1",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        }
+      ],
+      "read": [
+        "builds",
+        "errors"
+      ]
+    },
+    "expected": {
+      "builds": {
+        "V1": [
+          [
+            "P1",
+            1
+          ],
+          [
+            "P2",
+            1
+          ]
+        ]
+      },
+      "errors": [
+        "conflict",
+        "unobserved",
+        "scope",
+        "revision",
+        "invalid"
+      ]
+    },
+    "measures": "Verify replay identity, transaction rollback and errors for a changed key payload, unobserved, foreign, stale and duplicate evidence."
+  },
+  {
+    "id": "trials-version-pins",
+    "ticket": "B24",
+    "input": {
+      "project": "A",
+      "steps": [
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "record",
+          "id": "P2",
+          "signal": "Missed",
+          "text": "One of three began, with a verbal hint.",
+          "lesson": "Keep the first wording dated.",
+          "setback": "",
+          "at": "2026-10-20"
+        },
+        {
+          "op": "build",
+          "key": "request-V3",
+          "id": "V3",
+          "sources": [
+            [
+              "P2",
+              2
+            ],
+            [
+              "P3",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design.",
+          "parent": "V1"
+        }
+      ],
+      "read": [
+        "builds",
+        "errors"
+      ]
+    },
+    "expected": {
+      "builds": {
+        "V1": [
+          [
+            "P1",
+            1
+          ],
+          [
+            "P2",
+            1
+          ]
+        ],
+        "V3": [
+          [
+            "P2",
+            2
+          ],
+          [
+            "P3",
+            1
+          ]
+        ]
+      },
+      "errors": []
+    },
+    "measures": "Read source observation revision one from V1 and revision two from its successor after an attributed correction."
+  },
+  {
+    "id": "resume-project-print",
+    "ticket": "B25",
+    "input": {
+      "project": "A",
+      "steps": [
+        {
+          "op": "build",
+          "key": "request-V1",
+          "id": "V1",
+          "sources": [
+            [
+              "P1",
+              1
+            ],
+            [
+              "P2",
+              1
+            ]
+          ],
+          "why": "Use the evidence to choose a design."
+        },
+        {
+          "op": "record",
+          "id": "V1",
+          "signal": "Worked",
+          "text": "The bar played once.",
+          "lesson": "Try a second round.",
+          "setback": "Replay froze.",
+          "at": "2026-10-20"
+        },
+        {
+          "op": "select",
+          "id": "P2",
+          "revision": 1
+        },
+        {
+          "op": "select",
+          "id": "V1",
+          "revision": 1
+        },
+        {
+          "op": "unselect",
+          "id": "P2",
+          "revision": 1
+        },
+        {
+          "op": "select",
+          "id": "P2",
+          "revision": 1
+        },
+        {
+          "op": "select",
+          "id": "P2",
+          "revision": 1
+        },
+        {
+          "op": "select",
+          "id": "P1",
+          "revision": 1
+        },
+        {
+          "op": "select",
+          "id": "foreign",
+          "revision": 1
+        }
+      ],
+      "read": [
+        "resume",
+        "errors"
+      ]
+    },
+    "expected": {
+      "resume": [
+        {
+          "id": "P2",
+          "text": "One of three began on the arrow.",
+          "lesson": "Try a count-in.",
+          "setback": ""
+        },
+        {
+          "id": "V1",
+          "text": "The bar played once.",
+          "lesson": "Try a second round.",
+          "setback": "Replay froze."
+        }
+      ],
+      "errors": [
+        "ineligible",
+        "scope"
+      ]
+    },
+    "measures": "Project only selected entries, exact recorded words and unexpected setbacks. Deselect/reselect keeps one copy and the original observed-date order. Compare the PDF text in the real print integration."
+  },
+  {
+    "id": "resume-revival",
+    "ticket": "B25",
+    "input": {
+      "project": "A",
+      "steps": [
+        {
+          "op": "select",
+          "id": "P2",
+          "revision": 1
+        },
+        {
+          "op": "revive",
+          "id": "P2",
+          "new": "P4",
+          "changed": "Headphones are available."
+        },
+        {
+          "op": "record",
+          "id": "P4",
+          "signal": "Matched",
+          "text": "Three waited for the cue.",
+          "lesson": "The count-in helped.",
+          "setback": "",
+          "at": "2026-10-20"
+        }
+      ],
+      "read": [
+        "results",
+        "resume",
+        "revivals"
+      ]
+    },
+    "expected": {
+      "results": {
+        "P1": [
+          "Matched"
+        ],
+        "P2": [
+          "Missed"
+        ],
+        "P3": [
+          "Unclear"
+        ],
+        "draft": [],
+        "P4": [
+          "Matched"
+        ]
+      },
+      "resume": [
+        {
+          "id": "P2",
+          "text": "One of three began on the arrow.",
+          "lesson": "Try a count-in.",
+          "setback": ""
+        }
+      ],
+      "revivals": {
+        "P4": {
+          "from": "P2",
+          "changed": "Headphones are available."
+        }
+      }
+    },
+    "measures": "Read the original miss and a separate linked new attempt. The successful new trial does not erase the original."
+  },
+  {
+    "id": "resume-legacy-empty",
+    "ticket": "B25",
+    "input": {
+      "project": "legacy",
+      "steps": [],
+      "read": [
+        "builds",
+        "resume",
+        "results"
+      ]
+    },
+    "expected": {
+      "builds": {},
+      "resume": [],
+      "results": {}
+    },
+    "measures": "Open a migrated schema 6 project. Existing maps, paper marks and portfolio selections create no fictional trial or résumé entry."
+  }
+]

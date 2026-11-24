@@ -1,0 +1,1906 @@
+{
+  "design": "0.8",
+  "handoff": "0.8.1",
+  "archive_schema": 7,
+  "gates": {
+    "notebook": [
+      "B0",
+      "B1",
+      "B2"
+    ],
+    "family-pilot": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7",
+      "B9",
+      "B10",
+      "B11",
+      "B12",
+      "B13",
+      "B15",
+      "B16",
+      "B17",
+      "B21",
+      "B22",
+      "B23",
+      "B24",
+      "B25"
+    ],
+    "full": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7",
+      "B8",
+      "B9",
+      "B10",
+      "B11",
+      "B12",
+      "B13",
+      "B14",
+      "B15",
+      "B16",
+      "B17",
+      "B18",
+      "B19",
+      "B20",
+      "B21",
+      "B22",
+      "B23",
+      "B24",
+      "B25"
+    ]
+  },
+  "tickets": [
+    {
+      "id": "B0",
+      "test": "T0",
+      "title": "Deployment skeleton",
+      "deliverable": "Single Docker release, PostgreSQL migration, readiness check, home Compose, Render Blueprint and Google profile from §7.",
+      "acceptance": "Start from an empty home installation. Restart without losing the fixture record. Validate the Compose/Blueprint definitions and Google configuration in CI. Record separate rehearsal status for each hosted profile. A paid staging deployment runs only when the family chooses it.",
+      "risk": "infrastructure",
+      "context": "B0.1 serves a simple status response and is the recommended first assignment.",
+      "spec_lines": "526-626",
+      "scenarios": [
+        "S10"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B0.1",
+          "title": "Serve a health response",
+          "layer": "Rust",
+          "depends": [],
+          "work": "Create the smallest Rust workspace with an Axum router and a binary that binds the configured port. Add a loopback HTTP integration test.",
+          "pass_case": "GET /healthz returns 200 and a status-only body from the running binary.",
+          "adverse_case": "An unknown route stays unknown. Logs and the response contain no connection strings.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "Cargo.toml, Cargo.lock, crates/fieldbook/src/ and its router integration test",
+          "verify": "Run cargo test --workspace --locked, start the actual binary, then request /healthz and an unknown route on loopback."
+        },
+        {
+          "id": "B0.2",
+          "title": "Persist the first migration",
+          "layer": "SQL",
+          "depends": [
+            "B0.1"
+          ],
+          "work": "Add SQLx migrations on PostgreSQL 16, schema-aware /readyz, a non-root release image and a home Compose profile with persistent data.",
+          "pass_case": "Insert a fictional record, restart app and database, and retrieve the same ID. The ready response is 200.",
+          "adverse_case": "With the database unavailable or the schema behind, /readyz reports unavailable while /healthz still serves.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B0.3",
+          "title": "Describe all three hosts",
+          "layer": "Ops",
+          "depends": [
+            "B0.2"
+          ],
+          "work": "Add render.yaml and deploy/google with private media, secret references, migration and a readiness probe. Use the same image on every profile.",
+          "pass_case": "Validate Compose, Blueprint and Google configuration locally or in CI and record each result separately.",
+          "adverse_case": "Reject durable media on an ephemeral path. A configuration check cannot count as a paid-host rehearsal.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "deploy/, compose.yaml, render.yaml and the matching command or runbook",
+          "verify": "Run docker compose --env-file .env.example config --quiet and the relevant profile-specific checks. Record actual and configuration-only runs separately."
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "test": "T1",
+      "title": "Signed-in notebook",
+      "deliverable": "Provision named student/guardian accounts, step-up authentication, home screen, project navigation, keyboard and responsive accessibility.",
+      "acceptance": "Anush signs in on a shared computer without a phone. A parent signs in independently on Android. On a shared browser, sign out or switch roles and verify browser Back cannot reveal the old account. Test a 360 px viewport and keyboard capture. A second synthetic household receives a 404 for the first household’s private IDs.",
+      "risk": "access",
+      "context": "Use separate fictional accounts and a virtual authenticator for CI.",
+      "spec_lines": "94-105,398-414,557-558",
+      "scenarios": [
+        "S1",
+        "S14",
+        "S15"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B1.1",
+          "title": "Bind identity to a household",
+          "layer": "Rust",
+          "depends": [
+            "B0.2"
+          ],
+          "work": "Implement server-verified WebAuthn enrollment and sign-in with the maintained library. Bind sessions to actor and household and verify origin, CSRF and per-record policy.",
+          "pass_case": "The learner signs in with a device credential or security key and two guardians sign in separately.",
+          "adverse_case": "An unrelated household receives the same 404 for absent and inaccessible private records.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B1.2",
+          "title": "Switch accounts on a shared computer",
+          "layer": "UI",
+          "depends": [
+            "B1.1"
+          ],
+          "work": "Create a phone-free sign-in entry, visible current actor, sign-out, switch account and empty Home with keyboard focus.",
+          "pass_case": "At 360 px and 200% zoom the writer can reach capture, sign out, and enter as a different family member.",
+          "adverse_case": "After switching, Back and browser cache reveal no previous actor’s text or draft.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B1.3",
+          "title": "Rehearse learner and parent entry",
+          "layer": "QA",
+          "depends": [
+            "B1.2"
+          ],
+          "work": "Exercise the shared computer and a guardian’s Android flow with fictional data. Save keyboard order and actual device or emulator used.",
+          "pass_case": "Separate signed sessions can reach their allowed Home and a parent can reauthenticate independently.",
+          "adverse_case": "Record virtual and physical credential tests separately. Expired sessions request sign-in and clear local sensitive state.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "test": "T2",
+      "title": "Journal",
+      "deliverable": "Text or photo capture, default family journal, own-word edits and scribed confirmation, dated comments.",
+      "acceptance": "Anush saves a sentence without a photo or guardian. A double-tap saves one entry. A parent can add a suggestion as a comment. Only the learner can revise the learner’s own words, and the original version remains attributable. Invalid input retains typed text.",
+      "risk": "product",
+      "context": "The journal is usable before any photo, tag or project is available.",
+      "spec_lines": "96-118,415-450",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S6",
+        "S11"
+      ],
+      "cases": [
+        "journal-retry"
+      ],
+      "slices": [
+        {
+          "id": "B2.1",
+          "title": "Save one attributed sentence",
+          "layer": "SQL",
+          "depends": [
+            "B1.1",
+            "B1.2"
+          ],
+          "work": "Implement the moment command, unique actor/submission key, optional activity date and optimistic revisions. Support text or a finalized file.",
+          "pass_case": "One sentence saves without a project. A duplicate submission returns the same moment and keeps authorship.",
+          "adverse_case": "Reject an empty note with no finalized file. A stale revision preserves both versions for review.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B2.2",
+          "title": "Capture and keep a draft",
+          "layer": "UI",
+          "depends": [
+            "B2.1"
+          ],
+          "work": "Build the solo sentence editor and family mode. Keep a draft tied to tab, actor and intended object until saved or discarded.",
+          "pass_case": "Two tabs can change selection independently while the first retains its typed words and parent.",
+          "adverse_case": "A validation error preserves words. A switch of account removes access to the previous actor’s draft.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B2.3",
+          "title": "Comment without changing the child’s words",
+          "layer": "Rust/UI",
+          "depends": [
+            "B2.2"
+          ],
+          "work": "Implement own-word edits, signed family comments, guardian observations and confirmation for scribed words.",
+          "pass_case": "A parent can comment under their own name and Anush can confirm or correct a scribed draft.",
+          "adverse_case": "An adult comment cannot rewrite student prose. Editing scribed wording clears earlier outward approval.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "test": "T3",
+      "title": "Attachments",
+      "deliverable": "Multi-asset picker, private originals and previews, Drive references, resumable copy and checksum.",
+      "acceptance": "A parent uploads a photo first. Anush later matches it to his family moment without creating another copy or changing the uploader. Check the words-first path too. Save five items to a tournament moment. Four open from Fieldbook with network access to Drive disabled. The full recording is visibly link-only. Promote it using a supplied file, stop halfway, resume, and verify a single archived copy with the source hash.",
+      "risk": "access",
+      "context": "Use the four small synthetic files in fixtures/media and the link-only recording.",
+      "spec_lines": "102-103,126-139,450-457,520-525",
+      "scenarios": [
+        "S12",
+        "S13",
+        "S15"
+      ],
+      "cases": [
+        "photo-match"
+      ],
+      "slices": [
+        {
+          "id": "B3.1",
+          "title": "Finalize private copies",
+          "layer": "Storage",
+          "depends": [
+            "B2.1"
+          ],
+          "work": "Store staged chunks, resume by offset, verify length and SHA-256, and publish immutable originals before making their relation visible.",
+          "pass_case": "Interrupt and resume a copy. The final original opens once with the manifest hash.",
+          "adverse_case": "A missing or changed chunk leaves no ready original or public preview. A replay creates no duplicate file.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B3.2",
+          "title": "Match a photo from another device",
+          "layer": "UI",
+          "depends": [
+            "B3.1"
+          ],
+          "work": "Implement parent photo/file picker, Family photos to match, explicit match and unmatch, actor attribution and independent assets.",
+          "pass_case": "Test words-first and photo-first, using two accounts. One asset and the original uploader remain after unmatching and relinking.",
+          "adverse_case": "A parent cannot attach to the child’s diary. A duplicate match makes one relation.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B3.3",
+          "title": "Separate Drive links and copies",
+          "layer": "API",
+          "depends": [
+            "B3.2"
+          ],
+          "work": "Support an ordered list of mixed assets, private original downloads and a user-supplied original for Keep a copy.",
+          "pass_case": "Four local files open with Drive disconnected. The fifth clearly says link-only until a verified copy completes.",
+          "adverse_case": "A private PDF stays unavailable to a guest who was granted the separate photo.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "test": "T4",
+      "title": "Private diary",
+      "deliverable": "Separate diary, per-object/file authorization, two independent parental recovery paths, access history.",
+      "acceptance": "A diary sentinel stays out of normal parent views, counts, search, thumbnails, coaching and exports. Test each parent separately. The child sees two access events. An expired session returns to ordinary access.",
+      "risk": "access",
+      "context": "Each guardian has a separate time-limited path and the learner sees the event.",
+      "spec_lines": "118-126,411-414,694-706",
+      "scenarios": [
+        "S14"
+      ],
+      "cases": [
+        "diary-scope"
+      ],
+      "slices": [
+        {
+          "id": "B4.1",
+          "title": "Isolate diary records and files",
+          "layer": "SQL",
+          "depends": [
+            "B1.3",
+            "B2.1",
+            "B3.1"
+          ],
+          "work": "Implement family/diary visibility and a policy used by direct reads, search, counts, previews and export selectors.",
+          "pass_case": "The learner may open the seeded diary. Ordinary guardian, guest and second household views exclude it.",
+          "adverse_case": "A diary marker is absent from thumbnails, suggested matches, all family lists and filenames.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B4.2",
+          "title": "Record exceptional access before opening",
+          "layer": "Rust",
+          "depends": [
+            "B4.1"
+          ],
+          "work": "Add independent guardian reauthentication, time-limited read-only access and an immutable access event visible to the learner.",
+          "pass_case": "Each guardian can open the diary separately. Two events identify the two distinct actors.",
+          "adverse_case": "Failed logging, expired elevation or a normal session cannot expose the diary. Sharing and coaching stay unavailable in elevation.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B4.3",
+          "title": "Explain diary access to the learner",
+          "layer": "UI/QA",
+          "depends": [
+            "B4.2"
+          ],
+          "work": "Add the on-screen privacy promise, access history and sign-out or expiry flow. Check original file routes use the same gate.",
+          "pass_case": "After two separately elevated views the learner sees both times and actors and can still journal.",
+          "adverse_case": "An expired or signed-out guardian returns to ordinary visibility, including on browser Back.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "test": "T5",
+      "title": "Relatives and outside feedback",
+      "deliverable": "Per-entry invitation, preview of chosen text/files, comments and revoke. Separate family-uploaded teacher letter from parent paraphrase.",
+      "acceptance": "A relative can comment on the photo highlight. The same relative cannot open the unselected PDF, another entry or a private diary file. Revocation ends future app access. Teacher feedback comes through the family.",
+      "risk": "access",
+      "context": "Use one named relative and one withdrawn grant.",
+      "spec_lines": "106-138,445-458",
+      "scenarios": [
+        "S3",
+        "S8",
+        "S12",
+        "S14"
+      ],
+      "cases": [
+        "guest-revoked"
+      ],
+      "slices": [
+        {
+          "id": "B5.1",
+          "title": "Approve exact guest material",
+          "layer": "Rust",
+          "depends": [
+            "B3.3",
+            "B4.1"
+          ],
+          "work": "Persist an authenticated named guest’s grant to selected text revision and file representation, then support withdrawal.",
+          "pass_case": "The invited account may open the selected highlight and photo and see the intended attribution.",
+          "adverse_case": "An unrelated account, an unselected letter and a private diary remain unavailable.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B5.2",
+          "title": "Preview and comment as a relative",
+          "layer": "UI",
+          "depends": [
+            "B5.1"
+          ],
+          "work": "Provide matched learner/guardian review, guest preview and dated comments. Keep teacher uploads and paraphrases distinguishable.",
+          "pass_case": "A valid guest can add a comment to the selected highlight. Family archive records the writer and recorder.",
+          "adverse_case": "Adding an attachment or changing the source never expands an existing grant automatically.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B5.3",
+          "title": "Exercise revocation everywhere",
+          "layer": "QA",
+          "depends": [
+            "B5.2"
+          ],
+          "work": "Withdraw the grant, repeat the real read, download and comment flows, and inspect visible lists.",
+          "pass_case": "Previously allowed guest access ends on each route and the household can still read its original.",
+          "adverse_case": "Reusing an expired invitation never makes an active grant or reveals a filename.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B6",
+      "test": "T6",
+      "title": "Projects and evidence",
+      "deliverable": "Attempts, contributions, activity/contest outcome, skill reasons, timeline, transfer between projects.",
+      "acceptance": "Compare two attempts. One moment can support two skills under the same ID. Participant and host roles and the learner’s help disclosure survive editing and restore.",
+      "risk": "product",
+      "context": "Exercise a new user-defined domain such as a neighborhood seed exchange.",
+      "spec_lines": "39-70,94-118,343-361,415-443",
+      "scenarios": [
+        "S2",
+        "S4",
+        "S6",
+        "S10",
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B6.1",
+          "title": "Store attempts and contributions",
+          "layer": "SQL",
+          "depends": [
+            "B2.3",
+            "B3.2"
+          ],
+          "work": "Add optional roles, event/outcome, help credits, prior attempt and editable household labels with stable IDs.",
+          "pass_case": "A scout, artist, athlete or new family-defined project uses the same save path. Old attempts remain independent.",
+          "adverse_case": "Retiring a label hides it from new choices and preserves historical links.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B6.2",
+          "title": "Compare two attempts",
+          "layer": "UI",
+          "depends": [
+            "B6.1"
+          ],
+          "work": "Display event chronology, contributions, help and outcomes. Allow an existing family moment to link to another project or skill by ID.",
+          "pass_case": "Two attempts display in activity order. One revised moment supports two skills with separate reasons.",
+          "adverse_case": "Removing one connection never deletes the source, its files or its other project.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B6.3",
+          "title": "Trace a transfer",
+          "layer": "QA",
+          "depends": [
+            "B6.2"
+          ],
+          "work": "Seed two comparable attempts in different domains. Capture the learner’s reason for transferring a skill and the attribution.",
+          "pass_case": "Following either project or skill returns the same source ID and its evidence sentence.",
+          "adverse_case": "One suggestion alone adds no demonstrated skill. Test a project with no configured domain label.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B7",
+      "test": "T7",
+      "title": "Built-in Explore",
+      "deliverable": "Current entry and weekly entrances, one candidate with a reason, one experiment, verified quote catalog, outcome capture.",
+      "acceptance": "Accept or dismiss one match. With no match, still get one small experiment. Never suggest a diary match to the family. The next check-in preserves the most recent next step through a skipped week.",
+      "risk": "product",
+      "context": "All ordinary coaching works locally.",
+      "spec_lines": "140-149,415-443,445-459",
+      "scenarios": [
+        "S4",
+        "S5",
+        "S13"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B7.1",
+          "title": "Match one earlier moment",
+          "layer": "Rust",
+          "depends": [
+            "B6.2",
+            "B4.1"
+          ],
+          "work": "Rank authorized family candidates by common skill, recent activity date and stable ID. Record dismissals.",
+          "pass_case": "Return at most one related moment with a reason, or no match on unrelated history.",
+          "adverse_case": "A dismissed pair, diary or inaccessible moment never appears and never affects displayed counts.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B7.2",
+          "title": "Keep one small experiment",
+          "layer": "UI",
+          "depends": [
+            "B7.1"
+          ],
+          "work": "Add Explore to a moment and check-in, one proposed experiment and an optional exact quotation from a verified, versioned catalog.",
+          "pass_case": "A learner can accept, skip or simply keep the memory. A good match shows author, source and context.",
+          "adverse_case": "No match still allows a small experiment. No verified quote means no quote card.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B7.3",
+          "title": "Resume after a skipped week",
+          "layer": "SQL/QA",
+          "depends": [
+            "B7.2"
+          ],
+          "work": "Persist one check-in per learner/local week, most recent chosen next action and any observed outcome.",
+          "pass_case": "Skip a week and retrieve the previous nonblank next step without a backlog.",
+          "adverse_case": "Repeated save in the same week updates one check-in. Merely browsing never silently changes a chosen action.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B8",
+      "test": "T8",
+      "title": "Optional outside help",
+      "deliverable": "Provider interface, eligibility/configuration control, exact-text preview, explicit send, labeled result, error fallback.",
+      "acceptance": "With a fake service, disabled or canceled means zero requests. On confirmed send, the only personal input exactly matches the preview. A rejected or timed-out request yields a local suggestion. Runs in synthetic mode until a real service qualifies.",
+      "risk": "access",
+      "context": "Use the fake provider for every scripted test.",
+      "spec_lines": "140-149,453-456,557-558",
+      "scenarios": [
+        "S5",
+        "S13",
+        "S14"
+      ],
+      "cases": [
+        "ai-cancel"
+      ],
+      "slices": [
+        {
+          "id": "B8.1",
+          "title": "Put the external adapter behind a switch",
+          "layer": "Rust",
+          "depends": [
+            "B7.1",
+            "B4.2"
+          ],
+          "work": "Define provider inputs, labeled outputs, guardian enablement, eligible configuration and local fallback.",
+          "pass_case": "Disabled and canceled paths complete locally with zero outbound calls.",
+          "adverse_case": "Missing eligibility or failed service returns a local suggestion without resending private material.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "validation/cases.json (ai-cancel)",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B8.2",
+          "title": "Confirm the exact excerpt",
+          "layer": "UI",
+          "depends": [
+            "B8.1"
+          ],
+          "work": "Preview provider name and precise editable excerpt. Bind consent to actor, provider, text/version and expiry.",
+          "pass_case": "One explicit send supplies only previewed personal text and a fixed instruction.",
+          "adverse_case": "Editing the excerpt invalidates approval. No files, relatives’ names, graph or hidden notes join the request.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "validation/cases.json (ai-cancel)",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B8.3",
+          "title": "Count requests and validate fallback",
+          "layer": "QA",
+          "depends": [
+            "B8.2"
+          ],
+          "work": "Exercise disable, cancel, timeout, duplicate confirm and unusable response with a recording fake.",
+          "pass_case": "One confirmed idempotent request produces one labeled result of the correct visibility.",
+          "adverse_case": "The guardian’s exceptional diary view cannot send anything. Logs omit excerpt text.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "validation/cases.json (ai-cancel)",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B9",
+      "test": "T9",
+      "title": "Keepsakes",
+      "deliverable": "One-page term record and mentor brief, source labels and frozen printable editions.",
+      "acceptance": "Both templates fit one Letter page. A private sentinel and an unapproved letter never appear. A stale approval must be renewed. Changing a source or a label leaves an already frozen edition readable as saved.",
+      "risk": "access",
+      "context": "Use the family-authored term record and mentor brief with fictional evidence.",
+      "spec_lines": "341-369,415-443",
+      "scenarios": [
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B9.1",
+          "title": "Select and approve fields",
+          "layer": "Rust",
+          "depends": [
+            "B5.2",
+            "B6.2"
+          ],
+          "work": "Build the one-page selector and approval states for both audience templates, preserving student voice and My part.",
+          "pass_case": "A mentor preview opens with the question and contains only approved, versioned text and chosen records.",
+          "adverse_case": "Changed source permissions or stale approval require review before a fresh outward edition.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B9.2",
+          "title": "Render and freeze a page",
+          "layer": "UI",
+          "depends": [
+            "B9.1"
+          ],
+          "work": "Use one renderer for preview, print and a frozen edition. Keep private assets immutable with version and attribution.",
+          "pass_case": "Both formats fit one Letter page, and an earlier frozen page remains readable after editing a source.",
+          "adverse_case": "Overlong content requests editing or selection review. A private sentinel or unapproved letter cannot appear.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B9.3",
+          "title": "Replay a change in audience",
+          "layer": "QA",
+          "depends": [
+            "B9.2"
+          ],
+          "work": "Switch between a term record and mentor brief, withdraw eligibility, and verify retained historical provenance.",
+          "pass_case": "The authorized family can still distinguish date and source of each frozen edition.",
+          "adverse_case": "A withdrawn grant prevents future guest reads. Previously handed-out paper is outside app control.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "test": "T10",
+      "title": "Long-term recovery",
+      "deliverable": "Daily encrypted export, private diary protection, external-link inventory, fresh-instance restore and policy reconciliation.",
+      "acceptance": "Restore originals, roles, provenance, recorded parental access, comments and old editions. Check file hashes, rebind accounts and confirm withdrawn grants/permissions remain withdrawn. Corrupt input leaves the live instance untouched.",
+      "risk": "recovery",
+      "context": "Run only on disposable destinations using generated test keys.",
+      "spec_lines": "526-558,694-713",
+      "scenarios": [
+        "S10",
+        "S14"
+      ],
+      "cases": [
+        "restore-corrupt"
+      ],
+      "slices": [
+        {
+          "id": "B10.1",
+          "title": "Export a consistent household snapshot",
+          "layer": "Storage",
+          "depends": [
+            "B4.3",
+            "B5.3",
+            "B9.2"
+          ],
+          "work": "Serialize schema 6 manifest and immutable media under a consistent snapshot, encrypt for designated recovery recipients and publish the manifest last.",
+          "pass_case": "Six base moments, one separate highlight, four copied originals, one link and the frozen edition survive export.",
+          "adverse_case": "An absent blob or failed encryption cannot publish a success or replace a known-good backup.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B10.2",
+          "title": "Stage and validate restore",
+          "layer": "Rust",
+          "depends": [
+            "B10.1"
+          ],
+          "work": "Decrypt and validate into an empty destination before activation. Verify IDs, byte length, SHA-256, link-only states and attribution.",
+          "pass_case": "Open every copied asset after a clean restore and reconcile audit and newer revocations.",
+          "adverse_case": "A changed byte, missing object or unknown future schema leaves the live source untouched.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B10.3",
+          "title": "Recover with either parent",
+          "layer": "Ops/QA",
+          "depends": [
+            "B10.2"
+          ],
+          "work": "Place synthetic keys under independent custody, re-enroll test users, run old-version migration vectors and document the last verified recovery.",
+          "pass_case": "Either guardian independently restores. After re-enrollment a fresh logged action is required to view diary content.",
+          "adverse_case": "When revocation history freshness is unknown, prior external access remains inactive. No credentials or sessions are imported.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "test": "T11",
+      "title": "Hosting rehearsal",
+      "deliverable": "Follow home-to-Render and home-to-Google recipes with the same synthetic dataset. Run the chosen target with a blank environment before moving family data.",
+      "acceptance": "Entries, files, passkey plan, audit and privacy tests pass after restart. Exercise a failed import and rollback. Report separately for home, Render and Google which checks ran live and which were configuration-only.",
+      "risk": "recovery",
+      "context": "Label each hosting profile configuration-checked, live-tested, or untested.",
+      "spec_lines": "526-626,694-713",
+      "scenarios": [
+        "S10"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B11.1",
+          "title": "Rehearse the home installation",
+          "layer": "Ops",
+          "depends": [
+            "B0.3",
+            "B10.3"
+          ],
+          "work": "Start a fresh home profile on synthetic records, simulate interrupted restore, recover and record the tested origin and image.",
+          "pass_case": "Restarts retain files, identities and access history. A fresh-destination restore matches the manifest.",
+          "adverse_case": "A damaged archive fails before writes or cutover. Source remains available.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "deploy/, compose.yaml, render.yaml and the matching command or runbook",
+          "verify": "Run docker compose --env-file .env.example config --quiet and the relevant profile-specific checks. Record actual and configuration-only runs separately."
+        },
+        {
+          "id": "B11.2",
+          "title": "Validate the two hosted paths",
+          "layer": "Ops",
+          "depends": [
+            "B11.1"
+          ],
+          "work": "Check Render Blueprint and Google Cloud Run, Cloud SQL and private Storage using the same release and fake records. Rehearse the selected target when authorized.",
+          "pass_case": "Record exact release, configuration check and any actual rehearsal per host.",
+          "adverse_case": "Missing credentials or a paid target without authorization is recorded as untested or config-only, never deployed by default.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "deploy/, compose.yaml, render.yaml and the matching command or runbook",
+          "verify": "Run docker compose --env-file .env.example config --quiet and the relevant profile-specific checks. Record actual and configuration-only runs separately."
+        },
+        {
+          "id": "B11.3",
+          "title": "Rehearse one-writer cutover",
+          "layer": "QA",
+          "depends": [
+            "B11.2"
+          ],
+          "work": "Document write drain, final verified export and switch. Rehearse the failure case before and after writes at the target.",
+          "pass_case": "Before target writes the source resumes. After target writes newer data is frozen and verified before resuming one authoritative copy.",
+          "adverse_case": "A rollback that discards newer target writes fails the rehearsal.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/assets.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B12",
+      "test": "T12",
+      "title": "Idea cards",
+      "deliverable": "Add the local Rust card deck, mechanism filter and one on-demand new-field proposal. Show bridge, limitation and test in the frontend.",
+      "acceptance": "From grouping in math, suggest a music method before there is any music journal. Exactly one candidate appears. Skip and retry suppresses it. With no eligible card Anush can write his own. Zero external requests.",
+      "risk": "product",
+      "context": "Independent teaching lane. Use fixtures/lens.json before the production repository exists.",
+      "spec_lines": "149-188,664-688",
+      "scenarios": [
+        "S16",
+        "S17"
+      ],
+      "cases": [
+        "lens-match",
+        "lens-dismissed",
+        "lens-new-field",
+        "lens-named"
+      ],
+      "slices": [
+        {
+          "id": "B12.1",
+          "title": "Choose one borrowed method",
+          "layer": "Rust",
+          "depends": [],
+          "work": "Implement a pure choose_lens function over the supplied records. Filter different field, matching mechanism, feasible materials/time, requested field and dismissed version. Apply stable tie-breaking.",
+          "pass_case": "The grouping seed returns the rhythm lens in fixtures/lens.json. Empty or dismissed choices yield no suggestion.",
+          "adverse_case": "The navigation lens does not match grouping. No network, database, identity or phone is needed.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/lens.json",
+          "suggested_paths": "An isolated Rust domain module and its Cargo unit tests",
+          "verify": "Run cargo test against the new selection rule. Compare the four lens cases using the same inputs as the demonstration."
+        },
+        {
+          "id": "B12.2",
+          "title": "Explain a borrowed method",
+          "layer": "UI",
+          "depends": [
+            "B12.1"
+          ],
+          "work": "Render one local card with its bridge, limitation and small test. Support keep, skip, retry and write my own, including keyboard control.",
+          "pass_case": "With the fixture the learner can explain why the music method applies and edit it before keeping.",
+          "adverse_case": "An exhausted deck opens the own-idea path, produces no persisted draft and makes no outside request.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/lens.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B12.3",
+          "title": "Save the accepted version",
+          "layer": "Rust/UI",
+          "depends": [
+            "B12.2",
+            "B1.1",
+            "B2.1"
+          ],
+          "work": "Connect the Rust response to the Svelte card. Persist accepted version and edits within an authorized map when B13 lands.",
+          "pass_case": "One request shows one result. Keep preserves provenance, skip suppresses that version for the same starting idea.",
+          "adverse_case": "A reissued request or reload cannot create a second accepted card. B12.3 needs B1.1 and B2.1 for the production join.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/lens.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        }
+      ]
+    },
+    {
+      "id": "B13",
+      "test": "T13",
+      "title": "Map and List",
+      "deliverable": "Save branches, combine two chosen cards, and restore the same visible relationships in both views.",
+      "acceptance": "Keep two ideas, combine them and retry the save. Count one new node with exactly two incoming links. Complete the same actions with a keyboard in List. A relative, a different household and a restricted source reveal no hidden names, counts or edges.",
+      "risk": "access",
+      "context": "The graph and keyboard list share identities and authorized reads.",
+      "spec_lines": "149-188,400-414,464-520",
+      "scenarios": [
+        "S16",
+        "S17",
+        "S22"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B13.1",
+          "title": "Save the creative relations",
+          "layer": "SQL",
+          "depends": [
+            "B1.1",
+            "B2.1",
+            "B12.3"
+          ],
+          "work": "Implement a saved node with one outline home, plus typed inspiration links. Combine two distinct saved cards atomically.",
+          "pass_case": "One accepted combination produces one new node and exactly two incoming creative links.",
+          "adverse_case": "Retries return the same IDs. Two copies of the same source cannot make a combination.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B13.2",
+          "title": "Operate the same map from List",
+          "layer": "UI",
+          "depends": [
+            "B13.1"
+          ],
+          "work": "Present the same nodes, labels and selection in map and keyboard list. Keep a returning map’s focus.",
+          "pass_case": "Keep two cards, combine, reload and select the same result in either view.",
+          "adverse_case": "A hidden endpoint yields no edge, title, tooltip or count in either representation.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B13.3",
+          "title": "Reconcile edits between tabs",
+          "layer": "QA",
+          "depends": [
+            "B13.2"
+          ],
+          "work": "Keep selection tab-local, retain an open draft and recheck permissions before every saved mutation.",
+          "pass_case": "Selecting elsewhere leaves the writer’s title and original parent intact.",
+          "adverse_case": "A real concurrent edit yields a recoverable conflict preserving submitted text and subsequent edits.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B14",
+      "test": "T14",
+      "title": "Small experiments",
+      "deliverable": "Offer a three-step experiment, park/resume, record the result and prepare a help request.",
+      "acceptance": "Park and reopen on the shared computer. Saving only a plan produces zero evidence moments. Recording what happened creates one attributed moment, including on retry. Rehearse a private review of an unsent help card. Restore a v3 map and import a v2 archive with an empty map collection.",
+      "risk": "product",
+      "context": "Plans and recorded observations have different meaning.",
+      "spec_lines": "151-182,220-268,665-674,694-706",
+      "scenarios": [
+        "S5",
+        "S8",
+        "S13",
+        "S16",
+        "S23"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B14.1",
+          "title": "Store a chosen experiment",
+          "layer": "Rust",
+          "depends": [
+            "B13.2",
+            "B7.2"
+          ],
+          "work": "Implement one experiment with up to three editable steps and a student-chosen next action. Keep park/resume reversible.",
+          "pass_case": "Park and reopen a project. The chosen step remains recoverable even after looking at another card.",
+          "adverse_case": "Marking a step complete or sampling a contract creates zero journal or portfolio records.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B14.2",
+          "title": "Record what happened once",
+          "layer": "UI",
+          "depends": [
+            "B14.1"
+          ],
+          "work": "Create a learner-attributed moment from explicit recording and allow a help card with tried/stuck/question fields.",
+          "pass_case": "A repeated successful recording returns the same source ID and lets the student keep a failed trial.",
+          "adverse_case": "An unsent help preview contacts nobody. Cancel preserves the plan.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B14.3",
+          "title": "Restore earlier maps",
+          "layer": "QA",
+          "depends": [
+            "B14.2"
+          ],
+          "work": "Run schema 2 and 3 migration vectors and demonstrate one resumed experiment with its original provenance.",
+          "pass_case": "Schema 2 has empty maps. Schema 3 keeps edges/steps and the recorded root or a deterministic root placement.",
+          "adverse_case": "An old creative link never becomes an inferred dependency or second outline parent.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B15",
+      "test": "T15",
+      "title": "Ordered idea outline",
+      "deliverable": "Implement equal map-entry choices and add child, sibling, split preview, move and collapse.",
+      "acceptance": "Save a child, select it and split it into two grandchildren. Cancel another split, retry the accepted request and reject a cyclic move. Preserve parent text, evidence, sibling order and existing contracts. Keyboard controls work.",
+      "risk": "product",
+      "context": "Start with the worked split request in the contracts folder.",
+      "spec_lines": "220-283,464-520",
+      "scenarios": [
+        "S18",
+        "S20",
+        "S22"
+      ],
+      "cases": [
+        "split-retry"
+      ],
+      "slices": [
+        {
+          "id": "B15.1",
+          "title": "Commit one outline split",
+          "layer": "Rust",
+          "depends": [
+            "B13.2"
+          ],
+          "work": "Implement ordered children with stable IDs. Validate revision and actor-scoped idempotency in one transaction.",
+          "pass_case": "From revision 12 an accepted split returns revision 13, two ordered IDs and selects the first. A retry replays 201 and those IDs.",
+          "adverse_case": "A changed payload under the old key or stale revision yields 409. Blank titles yield 422 with no partial children.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B15.2",
+          "title": "Insert, move and split in List",
+          "layer": "UI",
+          "depends": [
+            "B15.1"
+          ],
+          "work": "Implement first idea, sub-idea, before/after, split preview, cancel, collapse and accessible move up/down or change parent.",
+          "pass_case": "Select a new child and split into grandchildren. Insert a sibling between two existing rows. Right-click, visible menu and keyboard expose the same actions.",
+          "adverse_case": "Cancel changes nothing. Reject a move into a descendant and preserve the parent’s references and handoffs.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B15.3",
+          "title": "Preserve meaning during reorder",
+          "layer": "QA",
+          "depends": [
+            "B15.2"
+          ],
+          "work": "Exercise subtree moves, stable IDs and focused list restoration in an arbitrary new project.",
+          "pass_case": "Item order changes but existing creative and handoff links retain their endpoint IDs.",
+          "adverse_case": "A stale tab cannot overwrite the newer structure or clear a draft.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B16",
+      "test": "T16",
+      "title": "Input/output agreements",
+      "deliverable": "Store named endpoints, shared meaning, sample, check and pinned contract revisions.",
+      "acceptance": "Connect the pattern output to the display and a second consumer. Accept two inputs for a different node. Reject an unauthorized link, duplicate active producer for one required input and a required same-pass cycle. Record next-pass feedback independently.",
+      "risk": "product",
+      "context": "Use fixtures/beat-pattern.json and inspect both ends of a handoff.",
+      "spec_lines": "282-317,415-443,464-523",
+      "scenarios": [
+        "S19",
+        "S22"
+      ],
+      "cases": [
+        "required-cycle"
+      ],
+      "slices": [
+        {
+          "id": "B16.1",
+          "title": "Describe a named input and output",
+          "layer": "SQL",
+          "depends": [
+            "B15.1"
+          ],
+          "work": "Attach meaning, revision, units or format, sample and acceptance criteria to an endpoint. Pin accepted versions.",
+          "pass_case": "One output can supply two different consumers and a node can receive two separately named inputs.",
+          "adverse_case": "A second active producer cannot occupy one ordinary required input.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B16.2",
+          "title": "Validate required dependencies",
+          "layer": "Rust",
+          "depends": [
+            "B16.1"
+          ],
+          "work": "Serialize handoff changes per map, evaluate required same-pass cycles on the full authorized project and keep next-pass feedback separate.",
+          "pass_case": "Acyclic dependencies commit and labeled next-pass feedback may form an intentional loop.",
+          "adverse_case": "Reject required cycles even when an endpoint sits outside the visible page. No cross-household link is accepted.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B16.3",
+          "title": "Connect and disconnect a handoff",
+          "layer": "UI",
+          "depends": [
+            "B16.2"
+          ],
+          "work": "Show named source and consumer, the sample and its version. Implement removal/restore through the shared recovery contract.",
+          "pass_case": "A reader can tell what is provided and how to check it without opening the whole project.",
+          "adverse_case": "Disconnecting an interface cannot delete either producer or consumer.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        }
+      ]
+    },
+    {
+      "id": "B17",
+      "test": "T17",
+      "title": "Independent and combined checks",
+      "deliverable": "Validate a versioned sample and record real handoff and project integration evidence.",
+      "acceptance": "The display rehearses on the valid sample before any producer exists. Reject a zero-based sample. Record a connected result separately. Revise the producer contract, preserve the earlier pass, flag both consumers and keep an unrelated branch intact.",
+      "risk": "product",
+      "context": "A passing rehearsal and a passing integration are separate observations.",
+      "spec_lines": "282-317,493-523",
+      "scenarios": [
+        "S19",
+        "S22",
+        "S23"
+      ],
+      "cases": [
+        "sample-v-actual"
+      ],
+      "slices": [
+        {
+          "id": "B17.1",
+          "title": "Check a supplied sample",
+          "layer": "Rust",
+          "depends": [
+            "B16.2"
+          ],
+          "work": "Validate a one-based beat pattern against a versioned agreement and distinguish structural validation from human judgment.",
+          "pass_case": "Four cells and beats 1 and 3 produce Sample passed for this version.",
+          "adverse_case": "Beat 0 fails. A passing sample cannot become a checked-together result.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B17.2",
+          "title": "Record an actual integration",
+          "layer": "API",
+          "depends": [
+            "B17.1"
+          ],
+          "work": "Pin real producer output, consumer revision, actor, criteria and result. Support a separate system-level observation.",
+          "pass_case": "The consumer runs with real output and records Checked together with the exact revisions.",
+          "adverse_case": "Completing every subtask or a mock run alone cannot certify project success.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B17.3",
+          "title": "Invalidate affected checks only",
+          "layer": "QA",
+          "depends": [
+            "B17.2"
+          ],
+          "work": "Change the producer contract and traverse actual dependent results while retaining prior revisions.",
+          "pass_case": "Both affected consumers show Needs review. A separate branch keeps its prior valid status.",
+          "adverse_case": "Reopening older history preserves who checked it, the earlier version and the recorded result.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/beat-pattern.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B18",
+      "test": "T18",
+      "title": "Ordered writing",
+      "deliverable": "Build the essay plan, restricted Google Docs link, optional archived PDF and reverse outline.",
+      "acceptance": "Reorder a body section before the opening. Each plan section appears once. Check old/new adjacent transitions, evidence placeholders and a missing/denied Docs link. Replace the link and confirm the original PDF remains readable. A schema-4 import preserves legacy prose verbatim.",
+      "risk": "product",
+      "context": "Google Docs is opened by the user. Manuscript text stays in their chosen document.",
+      "spec_lines": "318-340,464-483,694-706",
+      "scenarios": [
+        "S20"
+      ],
+      "cases": [
+        "essay-legacy"
+      ],
+      "slices": [
+        {
+          "id": "B18.1",
+          "title": "Reorder an essay plan",
+          "layer": "UI",
+          "depends": [
+            "B15.2",
+            "B3.1"
+          ],
+          "work": "Add paragraph purpose, source reference, reader order and reverse-outline note. Track old and new adjacent transition flags.",
+          "pass_case": "Move a body section before the opening. Each section appears once and both affected joins are flagged.",
+          "adverse_case": "Changing reader order does not manufacture an input/output dependency or discard evidence.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B18.2",
+          "title": "Validate a Docs pointer",
+          "layer": "Rust",
+          "depends": [
+            "B18.1"
+          ],
+          "work": "Accept a restricted-document HTTPS pointer on the exact docs.google.com document path. Store user-supplied title and open with no referrer.",
+          "pass_case": "Replace a document pointer while retaining the plan, and display a useful missing-access state.",
+          "adverse_case": "Reject unsupported origins and credential-bearing links. Saving or restoring a pointer makes zero fetches.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B18.3",
+          "title": "Retain a dated writing snapshot",
+          "layer": "QA",
+          "depends": [
+            "B18.2",
+            "B3.3"
+          ],
+          "work": "Link a private archived PDF and migrate a schema-4 paragraph as exact read-only legacy text with its author and ID.",
+          "pass_case": "After changing the link the earlier PDF opens with its original hash.",
+          "adverse_case": "Typographic punctuation and line breaks match character for character. The migrated Docs pointer starts empty.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B19",
+      "test": "T19",
+      "title": "Connected project graph",
+      "deliverable": "Render the REST neighborhood in Svelte Flow and in keyboard List. Add Parts, Ideas, Handoffs and Evidence controls and scope reads to both endpoints.",
+      "acceptance": "On the rhythm project, create a child, split it, select the handoff in another branch and follow the source moment. Both views agree after reload. A hidden source yields no title, edge or count. Run the bounded query budget on the stated fixture.",
+      "risk": "access",
+      "context": "Use PostgreSQL adjacency and a bounded Svelte Flow view.",
+      "spec_lines": "220-268,398-414,464-520",
+      "scenarios": [
+        "S18",
+        "S19",
+        "S22"
+      ],
+      "cases": [
+        "graph-privacy"
+      ],
+      "slices": [
+        {
+          "id": "B19.1",
+          "title": "Read a bounded neighborhood",
+          "layer": "Rust",
+          "depends": [
+            "B13.2",
+            "B15.2",
+            "B16.2"
+          ],
+          "work": "Return one focused node and up to 24 authorized neighbors, typed edge IDs, revision, selection and an opaque continuation.",
+          "pass_case": "The worked graph fixture renders after filtering both endpoints before counts and pagination.",
+          "adverse_case": "Inaccessible sources add no names, hidden counts, cursors revealing hidden records, or edges.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B19.2",
+          "title": "Render layers in Svelte Flow",
+          "layer": "UI",
+          "depends": [
+            "B19.1",
+            "B17.2"
+          ],
+          "work": "Feed Graph and keyboard List the same DTO with Parts, Ideas, Handoffs and Evidence. Persist selection by ID.",
+          "pass_case": "Follow a source, cross to a handoff, reload and switch views. Connected check labels work once B17 has landed.",
+          "adverse_case": "A hidden node cannot reappear via labels, breadcrumbs or a stale selected edge.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B19.3",
+          "title": "Measure the actual graph",
+          "layer": "QA",
+          "depends": [
+            "B19.2"
+          ],
+          "work": "Load 1,000 moments and 2,000 nodes, measure warm and cold requests, and record build/device/browser, samples and p95.",
+          "pass_case": "Evaluate 300 ms warm one-hop p95, 150 KiB compressed initial journal JS and two-second shared-device editor target separately.",
+          "adverse_case": "An unmeasured number is recorded as untested. Graph assets stay out of the initial journal bundle.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "contracts/planning-examples.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B20",
+      "test": "T20",
+      "title": "Past and new achievements",
+      "deliverable": "Add Portfolio, optional approximate event dates, multi-project evidence links and explicit selections. Preserve Keepsakes links.",
+      "acceptance": "Backfill an older month-only award without a file, attach a teacher PDF, add a new actual trial and link one moment to two projects. Retry creates one item. Removing the selection leaves the journal and file intact. A relative sees only an explicitly granted photo highlight. Restore a schema-5 fixture with all these relationships.",
+      "risk": "access",
+      "context": "Preserve one source across multiple projects and views.",
+      "spec_lines": "341-369,464-482,656-666,694-706",
+      "scenarios": [
+        "S7",
+        "S9",
+        "S12",
+        "S21",
+        "S23"
+      ],
+      "cases": [
+        "portfolio-withdraw"
+      ],
+      "slices": [
+        {
+          "id": "B20.1",
+          "title": "Select a portfolio source",
+          "layer": "SQL",
+          "depends": [
+            "B3.3",
+            "B5.2",
+            "B6.2",
+            "B9.2"
+          ],
+          "work": "Support approximate dates, backfill and an explicit, unique learner/moment portfolio selection.",
+          "pass_case": "A month-only participation can be entered without a file. Replay creates one selection.",
+          "adverse_case": "Removing a selection keeps the original moment, its attribution, files and additional project links.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B20.2",
+          "title": "Connect a past and a new achievement",
+          "layer": "UI",
+          "depends": [
+            "B20.1"
+          ],
+          "work": "Show event vs recording dates, My part, recognized result, help and optionally a teacher PDF. Link by existing moment ID.",
+          "pass_case": "One actual trial links to two projects, with one dated source, and the original teacher letter can be added later.",
+          "adverse_case": "Checking off an idea or saving a rehearsal creates no achievement or new moment.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B20.3",
+          "title": "Round-trip a schema-5 portfolio",
+          "layer": "QA",
+          "depends": [
+            "B20.2"
+          ],
+          "work": "Check the legacy selection, writing pointer, PDF snapshots and link identities through restore and guest preview.",
+          "pass_case": "After restore the same eligible guest sees only the approved photo highlight.",
+          "adverse_case": "Withdrawing a portfolio item or revoking a grant never destroys another project’s source.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/household.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B21",
+      "test": "T21",
+      "title": "Recovery for every artifact",
+      "deliverable": "Implement the paired actions in §4, the project and item recovery views, and accessible keyboard/touch controls. Cover existing maps and the last-project empty state.",
+      "acceptance": "Trash and restore current, inactive and final projects across reload. Recover a removed branch after an unrelated edit. Verify the original handoff ID, sample history and journal reference. Re-run with a missing endpoint and an occupied input. Undo, reload, redo, edit again and check the new redo sequence.",
+      "risk": "recovery",
+      "context": "Current actor and revision checks apply to inverse commands.",
+      "spec_lines": "188-220,464-483,694-706",
+      "scenarios": [
+        "S10",
+        "S18",
+        "S19",
+        "S22"
+      ],
+      "cases": [],
+      "slices": [
+        {
+          "id": "B21.1",
+          "title": "Trash and restore a project",
+          "layer": "SQL",
+          "depends": [
+            "B15.2",
+            "B16.2",
+            "B17.2"
+          ],
+          "work": "Implement soft-delete, the last-project empty state and restore with original project identity. Keep revision history and references together.",
+          "pass_case": "Trash active, inactive and last projects. Reload and restore the same IDs without duplicate seeds.",
+          "adverse_case": "A stale open tab cannot edit a trashed project. Other projects keep shared references.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B21.2",
+          "title": "Recover a particular item",
+          "layer": "Rust",
+          "depends": [
+            "B21.1"
+          ],
+          "work": "Retain branch or promoted children, previous parent/position, links, checks and source references in scoped recovery records.",
+          "pass_case": "Restore a removed subtree after an unrelated edit. Original IDs and prior history come back.",
+          "adverse_case": "A missing endpoint or occupied input remains pending with an explanation. Recovery does not overwrite unrelated edits.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B21.3",
+          "title": "Undo and redo a saved edit",
+          "layer": "UI/QA",
+          "depends": [
+            "B21.2"
+          ],
+          "work": "Add reachable action pairs on keyboard, touch and context menu, plus persisted undo/redo receipts and redo invalidation.",
+          "pass_case": "Undo, reload, redo, then make a new edit. Only the applicable redo sequence survives.",
+          "adverse_case": "Changing authorization or a later conflicting edit prevents compensation without undoing someone else’s work.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B22",
+      "test": "T22",
+      "title": "Permissions after recovery",
+      "deliverable": "Carry removal records and grant revocations through archive export/import. Require the same permissions for each inverse.",
+      "acceptance": "In a two-household fixture, restore a project after revoking a relative. Compare files, counts, highlights and diary visibility under each account. The former guest cannot read restored content. Round-trip a source used by two projects and confirm the other project still opens it.",
+      "risk": "access",
+      "context": "Retest recovery with two households and a later withdrawal.",
+      "spec_lines": "118-126,188-220,694-713",
+      "scenarios": [
+        "S10",
+        "S14",
+        "S21"
+      ],
+      "cases": [
+        "restore-revoked"
+      ],
+      "slices": [
+        {
+          "id": "B22.1",
+          "title": "Carry policy history through recovery",
+          "layer": "Rust",
+          "depends": [
+            "B21.2",
+            "B10.3",
+            "B5.3"
+          ],
+          "work": "Merge the latest independently held revocations/audit with archived roles and remove stale access before publication.",
+          "pass_case": "A grant withdrawn after the snapshot stays withdrawn after project and clean-instance restore.",
+          "adverse_case": "Unknown audit freshness leaves old external grants and export approval inactive until verified.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B22.2",
+          "title": "Test actor-specific inverse actions",
+          "layer": "QA",
+          "depends": [
+            "B22.1"
+          ],
+          "work": "Run the role matrix against restored originals, thumbnails, counts, highlights and guest file access.",
+          "pass_case": "Learner and authorized family can recover appropriate work. The former guest remains denied.",
+          "adverse_case": "Trying the same restore as a guest or unrelated household reveals nothing about the target.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        },
+        {
+          "id": "B22.3",
+          "title": "Verify shared sources survive",
+          "layer": "Ops/QA",
+          "depends": [
+            "B22.2"
+          ],
+          "work": "Recover a shared source and its archive with one project trashed and another active. Rehearse key custody and fresh parent access.",
+          "pass_case": "The active project opens the identical source and attachments. The learner can see the access history.",
+          "adverse_case": "A recovery does not silently renew consent, grant a new audience or expose diary contents in the readable index.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/archive-vectors.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B23",
+      "test": "T23",
+      "title": "Paper worksheet",
+      "deliverable": "Build the project/branch preview, pen-friendly print stylesheet, portable offline sheet and manual completion/reopen control.",
+      "acceptance": "Print an arbitrary project, an empty plan, a collapsed branch and a multipage outline. Check order, page headings, Letter/A4 fit and absence of unselected records. Rename and reorder a step, then match the paper by code. Reopen it, undo/redo the batch, retry, restore a project backup, and verify zero extra evidence.",
+      "risk": "access",
+      "context": "Use the included sample sheet and a generic, non-STEM project.",
+      "spec_lines": "369-380,464-490,651-665",
+      "scenarios": [
+        "S18",
+        "S24"
+      ],
+      "cases": [
+        "print-branch",
+        "paper-retry"
+      ],
+      "slices": [
+        {
+          "id": "B23.1",
+          "title": "Select a printable plan",
+          "layer": "Rust",
+          "depends": [
+            "B15.2",
+            "B21.2"
+          ],
+          "work": "Build one authorized projector for project/branch, saved outline order, stable paper references and optional in-scope notes or handoffs.",
+          "pass_case": "A collapsed branch includes saved descendants. Empty plan has three writable rows. Both endpoints must be in scope for a handoff.",
+          "adverse_case": "Unselected data, diary, letters, photographs, comments, history and removed records are absent.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B23.2",
+          "title": "Print or carry an offline sheet",
+          "layer": "UI",
+          "depends": [
+            "B23.1"
+          ],
+          "work": "Render print preview, native Print or save PDF and one self-contained read-only HTML file. Provide writing lines and low-ink checkboxes.",
+          "pass_case": "Check Letter and A4, a multipage 90-step plan and an offline file with the network disconnected. Long pages repeat project headings.",
+          "adverse_case": "A print from the private family workspace emits only the worksheet fields. A long label wraps and body controls do not print.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B23.3",
+          "title": "Re-enter paper marks safely",
+          "layer": "API/QA",
+          "depends": [
+            "B23.2",
+            "B21.3"
+          ],
+          "work": "Find steps by printed stable code/title. Validate changed rows and revisions and save as one undoable, idempotent group. Clear a mark to reopen.",
+          "pass_case": "Rename and reorder after printing, then mark, reopen, undo, redo, repeat and restore a backup. IDs and completion state persist.",
+          "adverse_case": "A stale or removed row rolls back the batch. No marks produce a journal moment, a portfolio item or a passed handoff.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    },
+    {
+      "id": "B24",
+      "test": "T24",
+      "title": "Pretotypes and cumulative prototypes",
+      "deliverable": "Start each new project with a pretotype. Save predictions and observations separately. Link each prototype version to one or more observed trials and the learner’s rationale.",
+      "acceptance": "Create three pretotypes and two overlapping prototypes, reuse a missed observation in both, retrieve links in both directions, and reject unobserved or foreign sources atomically.",
+      "risk": "product",
+      "context": "Start at project creation and keep hypotheses, observations and build decisions distinct. The same pretotype can guide several working versions.",
+      "spec_lines": "223-238,437-438,470-472,656-658",
+      "scenarios": [
+        "S18",
+        "S25"
+      ],
+      "cases": [
+        "trials-many-builds",
+        "trials-atomic-retry",
+        "trials-version-pins"
+      ],
+      "slices": [
+        {
+          "id": "B24.1",
+          "title": "Start the project with its first trial",
+          "layer": "Rust",
+          "depends": [
+            "B13.1",
+            "B15.1",
+            "B21.1"
+          ],
+          "work": "Extend the normal project-create command to insert the first draft in the same transaction. Implement successive save-plan and record-observation commands. Use a human-authored plan, prediction, true observation date, learner attribution and expected revision.",
+          "pass_case": "A new project returns a root and exactly one pretotype. A prediction exists before the user records the result.",
+          "adverse_case": "An exact retry creates one root and one draft. An older imported project opens with empty trials. A task tick cannot produce evidence.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B24.2",
+          "title": "Commit cumulative evidence links",
+          "layer": "SQL",
+          "depends": [
+            "B24.1"
+          ],
+          "work": "Persist addressed observation revisions, prototype versions, rationale, test target and project-scoped many-to-many source rows. Authorize all body/path IDs before writing. Return forward and reverse links.",
+          "pass_case": "Three observed pretotypes allow V1 with P1/P2 and V2 with P2/P3. P2 retains one identity. A follow-up build pins the specific source revisions it selected.",
+          "adverse_case": "Reject drafts, duplicate or cross-project sources and a stale expected revision without committing a partial version. Replay an accepted request after checking current authorization.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "migrations/, crates/fieldbook/src/storage/ and SQL-backed integration tests",
+          "verify": "Run cargo test --workspace --locked with an isolated PostgreSQL 16 database. Inspect committed rows and original file hashes where relevant."
+        },
+        {
+          "id": "B24.3",
+          "title": "Walk from an observation to each build",
+          "layer": "UI",
+          "depends": [
+            "B24.2"
+          ],
+          "work": "Open the first pretotype from New project. Display labels, plan/observe actions, a checkbox list with actual observations, a rationale and build test. Let an observed source open every build it informed.",
+          "pass_case": "A learner can cite a miss and an unclear trial, start two alternatives and create a version with one additional observation. Use only the keyboard for one pass.",
+          "adverse_case": "An empty state explains what to try. A suggestion or checkbox does not count as a real observation. Declined or parked projects stay findable.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        }
+      ]
+    },
+    {
+      "id": "B25",
+      "test": "T25",
+      "title": "Project Failure Résumé and revival",
+      "deliverable": "Generate the project résumé from selected real setbacks, support a print preview, and revive an attempt as a new linked pretotype.",
+      "acceptance": "Feature a missed prediction and a real unexpected build setback, remove and restore a selection, print one project, and revive a trial without changing its original observation.",
+      "risk": "product",
+      "context": "Keep a per-project, learner-curated record of real setbacks. Preserve history through feature, unfeature, print and revival.",
+      "spec_lines": "240-250,437-438,473-473,657-658,696-702",
+      "scenarios": [
+        "S23",
+        "S24",
+        "S26"
+      ],
+      "cases": [
+        "resume-project-print",
+        "resume-revival",
+        "resume-legacy-empty"
+      ],
+      "slices": [
+        {
+          "id": "B25.1",
+          "title": "Select setbacks and render one project",
+          "layer": "Rust",
+          "depends": [
+            "B24.3",
+            "B23.1",
+            "B22.2"
+          ],
+          "work": "Project an actual missed prediction or reported unexpected setback, its lesson and optional pride note. Scope assets, sources and downstream build titles for the chosen reader. Store a reversible selection by stable observation revision.",
+          "pass_case": "Re-adding an entry returns one selection. A build that otherwise worked can appear because an unexpected failure was actually recorded.",
+          "adverse_case": "Sample results, another project, and unselected or inaccessible evidence produce no résumé content or counts.",
+          "model": "GPT-6.2 Sol for the integration or review",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "crates/fieldbook/src/ and crates/fieldbook/tests/, plus web/src/ for a joint UI slice",
+          "verify": "Run cargo fmt --all -- --check and cargo test --workspace --locked. For a UI join also run the relevant web tests."
+        },
+        {
+          "id": "B25.2",
+          "title": "Print a résumé and revive one idea",
+          "layer": "UI",
+          "depends": [
+            "B25.1"
+          ],
+          "work": "Provide an accessible project preview and Print or save PDF with clear titles, learner wording, dates and authorized linked decisions. Add Revive this idea with a changed condition that starts a new pretotype.",
+          "pass_case": "A learner can feature a miss, remove it and add it back. Its date and text stay intact after an independently dated successful revival.",
+          "adverse_case": "Empty projects show a short prompt. Printing creates no share. Handle long writing across pages; a stopped project still has a usable résumé.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "web/src/ and web/tests/",
+          "verify": "From web/, run npm run check, npm test and npm run build. Exercise the named control with a keyboard."
+        },
+        {
+          "id": "B25.3",
+          "title": "Restore and review the learning record",
+          "layer": "QA",
+          "depends": [
+            "B25.2"
+          ],
+          "work": "Use schema 7 media and record backups to restore selected/unselected items, parked trials, revisions and source links. Run both-guardian recovery and changed guest-grant checks on the integrated application.",
+          "pass_case": "Round-trip two prototypes that share P2 and a revived setback. Compare IDs, content revisions, selection state and result dates in the project and the printable rendering.",
+          "adverse_case": "Legacy schemas 1–6 create no fictional history. A missing endpoint or later revoked grant blocks release of the affected data. Unauthorized exports remain denied.",
+          "model": "GPT-6 Luna for a bounded implementation or test",
+          "fixture": "fixtures/project-trials.json",
+          "suggested_paths": "The relevant integration or device tests and their evidence",
+          "verify": "Drive the named application flow against a disposable fixture. Run the owning Rust or web suite plus the specified device or operator procedure."
+        }
+      ]
+    }
+  ],
+  "scenarios": {
+    "S1": [
+      "Five minutes after teaching fractions",
+      "At the next available computer, Anush writes, “I lined up the left edges so the pieces were easier to compare.” He can leave the project blank.",
+      "The entry saves without a file. A parent can add a photo later under their own name. The activity date can be different from the date they uploaded it."
+    ],
+    "S2": [
+      "A robot turns too far",
+      "He saves the failed run with a condition and result. On a later day he links a second run, changes one parameter, and credits the teammate who built the chassis.",
+      "The project shows both attempts in order. “My part,” “Help I used,” and “What happened” stay distinct."
+    ],
+    "S3": [
+      "A teacher, friend, or parent notices something",
+      "A guardian records what a club sponsor saw, the observation date, and whether it is a quote or a paraphrase. A friend can be identified simply as “a club member.”",
+      "The card reads, for example, “Club sponsor · paraphrased by parent.” The student’s own reflection stays in its own field."
+    ],
+    "S4": [
+      "The habit of testing travels",
+      "He links a math-club entry about trying two explanations to a robotics entry about trying two turn settings. He adds, “I kept everything else the same to compare the results.”",
+      "The skill view shows both dated examples and his reason for connecting them. Each moment still has one original record."
+    ],
+    "S5": [
+      "Friday is busy, or he hit a dead end",
+      "He picks one moment, sees last week’s next step, and chooses whether to try it, change it, or let it go. He can skip the week.",
+      "The outcome and his next small experiment are available at the next check-in. A missed week creates no backlog."
+    ],
+    "S6": [
+      "Family learning outside STEM",
+      "He compares two ways to plan a camp meal, or archives a short dated music-practice clip. He describes what he could do alone and what someone showed him.",
+      "Everyday independence, creative practice, and service use the same capture screen. The family can keep them private indefinitely."
+    ],
+    "S7": [
+      "A term ends",
+      "Together they choose two moments, one student takeaway, and optionally an attributed observation cleared for inclusion. They preview the exact one-page record.",
+      "The family keeps a dated snapshot. Editing the underlying project later leaves the saved edition readable as it was."
+    ],
+    "S8": [
+      "A mentor offers a short conversation",
+      "Anush selects a failed turn, its improved test, and one question he wants to ask. His parent checks which details can travel.",
+      "A one-page Mentor Brief opens with the question and gives the mentor enough context to respond. Unselected notes stay private."
+    ],
+    "S9": [
+      "A later scholarship, internship, research program, or college asks for a sample",
+      "He starts from the recipient’s actual prompt, finds two relevant moments, and checks what he contributed and which source files are available.",
+      "In the first implementation the Mentor Brief can serve as a starting sheet. Later audience templates can arrange the same evidence around the actual request."
+    ],
+    "S10": [
+      "Interests change, or the family moves the app",
+      "A guardian adds “Field science,” retires an old skill from new forms, makes a backup, and restores it on a clean instance.",
+      "Existing entries, skill links, saved pages, and stored photos survive. A link to a recording still identifies its outside source."
+    ],
+    "S11": [
+      "A club visit, Scout outing or family memory",
+      "He marks whether he attended, hosted, taught, helped or watched. A photo and a sentence can finish the entry.",
+      "He can find his first time teaching and his favorite campout without adding a skill or outcome."
+    ],
+    "S12": [
+      "A sports or academic tournament",
+      "He optionally records event, team or individual role, outcome or personal best. A parent uploads the teacher’s letter, original photo and short demo.",
+      "The result, the child’s reaction and the recognition are distinct. A relative can comment on a selected highlight."
+    ],
+    "S13": [
+      "An AI-assisted game or invention",
+      "He keeps the game file, demonstration and the version he tested. He records one idea AI helped with and the choice he made himself.",
+      "The work still opens from a saved copy after a project link changes. A coach can suggest one experiment when requested."
+    ],
+    "S14": [
+      "A private reflection and a selected audience",
+      "Anush saves his disappointment to the diary and shares a separate family highlight. A parent later uses visible, recorded access when necessary.",
+      "The learner sees the access history. Each relative sees precisely the selected entry and files."
+    ],
+    "S15": [
+      "The photo and words arrive on different days",
+      "A guardian saves the fraction-strip photo under their own name. On the shared computer, Anush links it to his moment or leaves it in Family photos to match.",
+      "There is one original asset, two distinct contributions and no need for both devices at once."
+    ],
+    "S16": [
+      "One idea becomes a different kind of project",
+      "From a fraction lesson he borrows a rhythm, combines it with his saved Scratch idea, tests it on paper, and records what the test changed.",
+      "The map and its keyboard list show both sources, his reason, the next small action and his observation."
+    ],
+    "S17": [
+      "Anush builds a part of his own Fieldbook",
+      "On fictional data he writes a Rust rule to choose a new field and a Svelte control to reveal its explanation.",
+      "A reproducible test and one working screen show what he built. He can journal his implementation as a project."
+    ],
+    "S18": [
+      "Anush has an ambitious project",
+      "Select a saved idea, add a child, select the new child and split it into smaller parts. Move one existing part into the appropriate group.",
+      "Each idea has one home in the ordered outline, and references in other branches still open the same idea."
+    ],
+    "S19": [
+      "Two parts can be built separately",
+      "Agree on what the beat-pattern maker will give the display. Give the display a sample now, then connect the real output and check both parts together.",
+      "The two test results have separate labels. A change to the agreement shows which checks must be revisited."
+    ],
+    "S20": [
+      "A persuasive essay grows from a club experience",
+      "Plan the reason and its source in Fieldbook, write the body first in Google Docs, and reread the essay there.",
+      "The ordered plan, evidence and reverse-outline notes stay with the project. An optional dated PDF preserves one finished draft."
+    ],
+    "S21": [
+      "A proud moment predates the app",
+      "A parent records an earlier tournament, its activity date, Anush’s role and the reported result. Anush adds his own recollection. A teacher’s PDF can come later.",
+      "One portfolio item links to the source moment. Readers can distinguish the event date, recording date, student voice and teacher evidence."
+    ],
+    "S22": [
+      "Music, math and coding share one project",
+      "Open Graph from a fraction lesson, split the game into branches, and connect the rhythm maker’s output to the display’s input.",
+      "The same selected idea, outgoing agreement and incoming evidence are available in Graph and List. Changing a tested interface identifies the affected checks."
+    ],
+    "S23": [
+      "Today’s experiment becomes a new achievement",
+      "After an actual trial, Anush records what happened and chooses Add to portfolio. He may add another project or skill the observation supports.",
+      "One dated source remains attached to the chosen highlight. A proposed idea, a sample run or a checked box alone produces zero portfolio items."
+    ],
+    "S24": [
+      "Anush will be away from the computer",
+      "Print an ordered checklist for a project or one branch. Cross off steps on paper, add a thought and later enter the marks he wants to keep.",
+      "The same item code identifies each step after a rename or reorder. Saving twice creates no new work or evidence."
+    ],
+    "S25": [
+      "Several small tests guide two builds",
+      "Run three pretotypes, then select P1 and P2 for one version and P2 and P3 for another. Write what each version does with the evidence.",
+      "Open P2 from either version and see one unchanged observation and both destination builds."
+    ],
+    "S26": [
+      "A failed attempt becomes a point of pride",
+      "Feature an actual missed prediction and an unexpected build failure, print the project’s Failure Résumé, then revive one idea under a changed condition.",
+      "The first result, learner’s words and original date remain visible beside the linked new attempt."
+    ]
+  }
+}

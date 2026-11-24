@@ -1,0 +1,21 @@
+# Optional GitHub Actions example. Copy into the production repo's .github/workflows
+# when that CI provider is chosen. This first job needs only Python.
+name: Fieldbook handoff
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  packet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Locate the packet and check it
+        shell: bash
+        run: |
+          if [[ -f handoff/tools/fieldbook.py ]]; then cd handoff; fi
+          python3 tools/fieldbook.py check
+          python3 -m unittest discover -s tests -v
+          python3 tools/run_cases.py --ticket B12 -- python3 examples/lens_reference.py
