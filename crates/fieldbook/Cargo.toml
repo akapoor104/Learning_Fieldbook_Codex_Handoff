@@ -1,0 +1,13 @@
+[package]
+name = "fieldbook"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "net", "rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "time"] }
