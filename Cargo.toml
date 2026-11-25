@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/fieldbook"]
+resolver = "2"
