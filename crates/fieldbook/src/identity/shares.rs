@@ -1,13 +1,16 @@
+use crate::journal::{
+    add_scoped_comment, scoped_comments, set_scoped_withdrawal, AddComment, Comment,
+};
 use axum::{
     extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
-use sqlx::types::Json as DbJson;
+use sqlx::{types::Json as DbJson, Postgres, Transaction};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
@@ -18,6 +21,20 @@ use super::{
 
 pub(super) fn router() -> Router<Auth> {
     Router::new()
+        .route("/api/v1/shares", get(guest_list))
+        .route("/api/v1/moments/{id}/shares", get(family_review))
+        .route(
+            "/api/v1/shares/{id}/comments",
+            get(list_comments).post(add_comment),
+        )
+        .route(
+            "/api/v1/shares/{id}/comments/{comment}",
+            delete(withdraw_comment),
+        )
+        .route(
+            "/api/v1/shares/{id}/comments/{comment}/restore",
+            post(restore_comment),
+        )
         .route("/api/v1/shares/{id}", get(read).put(approve).delete(revoke))
         .route("/api/v1/shares/{id}/accept", post(accept))
 }
@@ -339,4 +356,175 @@ fn share_id(id: &str) -> Result<Uuid, Failure> {
         .ok()
         .filter(|id| !id.is_nil())
         .ok_or(Failure::Missing)
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct ShareSummary {
+    id: Uuid,
+    activity_date: Option<String>,
+}
+
+async fn guest_list(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<ShareSummary>>, Failure> {
+    let guest = guest_actor(&auth, &headers, false).await?;
+    Ok(Json(
+        sqlx::query_as(
+            "SELECT s.id, to_char(r.activity_date, 'YYYY-MM-DD') AS activity_date
+         FROM active_relative_shares s JOIN moment_revisions r
+           ON r.moment_id = s.moment_id AND r.revision = s.revision
+         WHERE s.household_id = $1 AND s.guest_id = $2
+         ORDER BY s.accepted_at DESC, s.id",
+        )
+        .bind(guest.household_id)
+        .bind(guest.id)
+        .fetch_all(&auth.pool)
+        .await?,
+    ))
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct GuestChoice {
+    id: Uuid,
+    display_name: String,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct FamilyShare {
+    id: Uuid,
+    guest_name: String,
+    state: String,
+    revision: i32,
+}
+
+#[derive(Serialize)]
+struct Review {
+    guests: Vec<GuestChoice>,
+    shares: Vec<FamilyShare>,
+}
+
+async fn family_review(
+    State(auth): State<Auth>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<Review>, Failure> {
+    let actor = family_actor(&auth, &headers, false).await?;
+    let id = share_id(&id)?;
+    let accessible: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM family_moments WHERE id = $1 AND household_id = $2)",
+    )
+    .bind(id)
+    .bind(actor.household_id)
+    .fetch_one(&auth.pool)
+    .await?;
+    if !accessible {
+        return Err(Failure::Missing);
+    }
+    let guests = sqlx::query_as(
+        "SELECT id, display_name FROM actors WHERE household_id = $1 AND role = 'guest'
+         ORDER BY display_name, id",
+    )
+    .bind(actor.household_id)
+    .fetch_all(&auth.pool)
+    .await?;
+    let shares = sqlx::query_as(
+        "SELECT s.id, a.display_name AS guest_name, s.revision,
+                CASE WHEN s.revoked_at IS NOT NULL THEN 'Withdrawn'
+                     WHEN coalesce(s.access_expires_at, s.invitation_expires_at) <= statement_timestamp() THEN 'Expired'
+                     WHEN s.accepted_at IS NULL THEN 'Invited'
+                     ELSE 'Active' END AS state
+         FROM relative_shares s JOIN actors a ON a.id = s.guest_id
+         WHERE s.moment_id = $1 AND s.household_id = $2 ORDER BY s.invitation_expires_at, s.id",
+    ).bind(id).bind(actor.household_id).fetch_all(&auth.pool).await?;
+    Ok(Json(Review { guests, shares }))
+}
+
+async fn thread_actor(auth: &Auth, headers: &HeaderMap, write: bool) -> Result<Actor, Failure> {
+    let (_, _, session) =
+        active_session(auth, headers, write || headers.contains_key(CSRF)).await?;
+    if session.diary_learner_id.is_some() {
+        return Err(Failure::Missing);
+    }
+    Ok(session.actor)
+}
+
+async fn thread(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: &Actor,
+    id: Uuid,
+) -> Result<Uuid, Failure> {
+    sqlx::query_scalar(
+        "SELECT moment_id FROM relative_shares
+         WHERE id = $1 AND household_id = $2 AND (NOT $3 OR guest_id = $4)
+           AND accepted_at IS NOT NULL AND revoked_at IS NULL AND access_expires_at > clock_timestamp()
+         FOR UPDATE",
+    )
+    .bind(id).bind(actor.household_id).bind(actor.role == "guest").bind(actor.id)
+    .fetch_optional(&mut **tx).await?.ok_or(Failure::Missing)
+}
+
+async fn list_comments(
+    State(auth): State<Auth>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Comment>>, Failure> {
+    let actor = thread_actor(&auth, &headers, false).await?;
+    let id = share_id(&id)?;
+    let mut tx = auth.pool.begin().await?;
+    // Hold the grant lock so the conversation read and withdrawal have a defined order.
+    let moment = thread(&mut tx, &actor, id).await?;
+    let comments = scoped_comments(&mut *tx, &actor, moment, id).await?;
+    tx.commit().await?;
+    Ok(Json(comments))
+}
+
+async fn add_comment(
+    State(auth): State<Auth>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(input): Json<AddComment>,
+) -> Result<Response, Failure> {
+    let actor = thread_actor(&auth, &headers, true).await?;
+    let id = share_id(&id)?;
+    let mut tx = auth.pool.begin().await?;
+    let moment = thread(&mut tx, &actor, id).await?;
+    let saved = add_scoped_comment(&mut tx, &actor, moment, Some(id), &input).await?;
+    tx.commit().await?;
+    Ok((StatusCode::CREATED, Json(saved)).into_response())
+}
+
+async fn withdraw_comment(
+    State(auth): State<Auth>,
+    Path((id, comment)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<StatusCode, Failure> {
+    change_comment(&auth, &headers, share_id(&id)?, share_id(&comment)?, true).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn restore_comment(
+    State(auth): State<Auth>,
+    Path((id, comment)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<Json<Comment>, Failure> {
+    Ok(Json(
+        change_comment(&auth, &headers, share_id(&id)?, share_id(&comment)?, false).await?,
+    ))
+}
+
+async fn change_comment(
+    auth: &Auth,
+    headers: &HeaderMap,
+    id: Uuid,
+    comment: Uuid,
+    withdraw: bool,
+) -> Result<Comment, Failure> {
+    let actor = thread_actor(auth, headers, true).await?;
+    let mut tx = auth.pool.begin().await?;
+    let moment = thread(&mut tx, &actor, id).await?;
+    let updated =
+        set_scoped_withdrawal(&mut tx, &actor, moment, Some(id), comment, withdraw).await?;
+    tx.commit().await?;
+    Ok(updated)
 }

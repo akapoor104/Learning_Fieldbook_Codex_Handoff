@@ -359,11 +359,19 @@ paths:
           application/json:
             schema:
               type: object
-              required: [submission_key, kind, body]
+              required: [submission_key, body]
               properties:
                 submission_key: { type: string, format: uuid }
-                kind: { type: string, enum: [comment, suggestion] }
+                kind: { type: string, enum: [comment, suggestion], default: comment }
                 body: { type: string }
+                feedback:
+                  type: object
+                  description: Guardian-recorded paraphrase, or a description of an attached original teacher PDF.
+                  required: [writer]
+                  properties:
+                    writer: { type: string }
+                    date: { type: [string, 'null'], format: date }
+                    asset_id: { type: [string, 'null'], format: uuid }
       responses:
         '201':
           description: Saved comment
@@ -490,6 +498,111 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/JournalMissing' }
         '409': { description: A different original is saved for this link }
+  /shares:
+    get:
+      summary: List active shares for the signed-in relative
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Active accepted shares only
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, activity_date]
+                  properties:
+                    id: { type: string, format: uuid }
+                    activity_date: { type: [string, 'null'], format: date }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/shares:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read the family’s relative choices and share history for one moment
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Named household guest choices and grant status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [guests, shares]
+                properties:
+                  guests:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, display_name]
+                      properties:
+                        id: { type: string, format: uuid }
+                        display_name: { type: string }
+                  shares:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, guest_name, revision, state]
+                      properties:
+                        id: { type: string, format: uuid }
+                        guest_name: { type: string }
+                        revision: { type: integer }
+                        state: { type: string, enum: [Invited, Active, Withdrawn, Expired] }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /shares/{id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+    get:
+      summary: Read dated comments for an active grant
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Comments in this grant’s conversation
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    post:
+      summary: Add a comment to an active grant
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [submission_key, body]
+              properties:
+                submission_key: { type: string, format: uuid }
+                body: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Invalid comment }
+  /shares/{id}/comments/{comment}:
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+      - $ref: '#/components/parameters/CommentId'
+    delete:
+      summary: Withdraw own comment while the grant is active
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Comment withdrawn }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /shares/{id}/comments/{comment}/restore:
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      summary: Restore own comment while the grant is active
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
   /shares/{id}:
     parameters:
       - $ref: '#/components/parameters/ShareId'
@@ -693,6 +806,255 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/JournalMissing' }
         '422': { description: Removing the only attachment would leave the moment empty }
+  /projects:
+    get:
+      summary: List household projects and labels, including retired labels for historical display
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Household project catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectCatalog' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    get:
+      summary: List a project’s family moments in activity order, including connections available to restore
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Project timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectTimelineEntry' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    put:
+      summary: Create a project using a client-generated ID
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProject' }
+      responses:
+        '201': { $ref: '#/components/responses/EvidenceCreated' }
+        '204': { description: Identical request already saved }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Invalid fields or a newly selected retired label }
+  /projects/{id}/moments/{moment}:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+      - $ref: '#/components/parameters/AttachmentMomentId'
+    put:
+      summary: Link or restore an existing family moment in this project
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Connection active }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    delete:
+      summary: Remove an additional project connection
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Connection withdrawn }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: This project is the attempt’s primary project }
+  /household-labels/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    put:
+      summary: Create or rename a household label as a guardian
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, name]
+              properties:
+                kind: { $ref: '#/components/schemas/HouseholdLabelKind' }
+                name: { type: string }
+                expected_name: { type: [string, 'null'], description: Current name when renaming a label }
+      responses:
+        '201': { $ref: '#/components/responses/EvidenceCreated' }
+        '204': { description: Label updated or exact retry }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: Invalid name or kind }
+    delete:
+      summary: Retire a household label as a guardian
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Label retired while historical relationships remain readable }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /household-labels/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    post:
+      summary: Restore a retired household label as a guardian
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Label made available for selection }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/attempt:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read attempt versions for an authorized family moment
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Attempt history, latest revision first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AttemptVersion' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    put:
+      summary: Save optional attempt details as the moment’s writer
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, expected_revision, details]
+              properties:
+                project_id: { type: string, format: uuid }
+                expected_revision: { type: integer, minimum: 0, description: Zero before the first attempt revision }
+                details: { $ref: '#/components/schemas/AttemptDetails' }
+      responses:
+        '200': { $ref: '#/components/responses/AttemptVersion' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: Invalid details, cycle or newly selected retired label }
+  /moments/{id}/attempt/restore:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    post:
+      summary: Restore attempt details by appending a new revision
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, restore_revision]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                restore_revision: { type: integer, minimum: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/AttemptVersion' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: The restored prior attempt would introduce a cycle }
+  /skills/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    get:
+      summary: Read dated evidence and transfers for a household skill
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Skill links and attributed transfers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [evidence, transfers]
+                properties:
+                  evidence:
+                    type: array
+                    items: { $ref: '#/components/schemas/SkillEvidence' }
+                  transfers:
+                    type: array
+                    items: { $ref: '#/components/schemas/SkillTransfer' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/skills/{skill}:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+      - $ref: '#/components/parameters/SkillId'
+    put:
+      summary: Record the learner’s evidence reason for this moment and skill
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                independence: { enum: [with_help, on_my_own, null] }
+      responses:
+        '201': { $ref: '#/components/responses/EvidenceCreated' }
+        '204': { description: Exact request already saved }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: Invalid reason, independence or retired skill }
+    delete:
+      summary: Withdraw the learner’s skill connection
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Connection withdrawn }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/skills/{skill}/restore:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+      - $ref: '#/components/parameters/SkillId'
+    post:
+      summary: Restore the learner’s skill connection
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Connection restored }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /skill-transfers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    put:
+      summary: Record why a learner used the same skill in two different projects
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TransferSources'
+                - type: object
+                  required: [label_id]
+                  properties:
+                    label_id: { type: string, format: uuid }
+      responses:
+        '201': { $ref: '#/components/responses/EvidenceCreated' }
+        '204': { description: Exact request already saved }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: Invalid sources or reason }
+    delete:
+      summary: Withdraw the learner’s transfer
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Transfer withdrawn }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /skill-transfers/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/EvidenceId'
+    post:
+      summary: Restore the learner’s transfer while both sources are active
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Transfer restored }
+        '404': { $ref: '#/components/responses/JournalMissing' }
   /uploads:
     post:
       summary: Begin a private upload or replay the same manifest
@@ -807,6 +1169,16 @@ components:
       in: header
       name: X-CSRF-Token
   parameters:
+    EvidenceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SkillId:
+      name: skill
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     ShareId:
       name: id
       in: path
@@ -843,6 +1215,122 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    HouseholdLabelKind:
+      type: string
+      enum: [domain, project_type, event_type, role, skill, tag]
+    HouseholdLabel:
+      type: object
+      required: [id, kind, name, retired]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/HouseholdLabelKind' }
+        name: { type: string }
+        retired: { type: boolean }
+    CreateProject:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        type_id: { type: [string, 'null'], format: uuid }
+        domain_ids:
+          type: array
+          items: { type: string, format: uuid }
+        question: { type: [string, 'null'] }
+        success_criterion: { type: [string, 'null'] }
+    Project:
+      allOf:
+        - $ref: '#/components/schemas/CreateProject'
+        - type: object
+          required: [id, state, type_id, domain_ids, question, success_criterion]
+          properties:
+            id: { type: string, format: uuid }
+            state: { type: string, enum: [active, completed, paused] }
+    ProjectCatalog:
+      type: object
+      required: [projects, labels]
+      properties:
+        projects:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/HouseholdLabel' }
+    EvidenceSource:
+      type: object
+      required: [moment_id, note, activity_date, learner_name, recorder_name, voice]
+      properties:
+        moment_id: { type: string, format: uuid }
+        note: { type: [string, 'null'] }
+        activity_date: { type: [string, 'null'], format: date }
+        learner_name: { type: string }
+        recorder_name: { type: string }
+        voice: { type: string, enum: [student, guardian, scribed] }
+    ProjectTimelineEntry:
+      allOf:
+        - $ref: '#/components/schemas/EvidenceSource'
+        - type: object
+          required: [occurred_on, recorded_at, primary_project_id, withdrawn]
+          properties:
+            occurred_on: { type: string, format: date }
+            recorded_at: { type: string, format: date-time }
+            primary_project_id: { type: [string, 'null'], format: uuid }
+            withdrawn: { type: boolean }
+    AttemptDetails:
+      type: object
+      properties:
+        event: { type: [string, 'null'] }
+        event_type_id: { type: [string, 'null'], format: uuid }
+        outcome: { type: [string, 'null'] }
+        my_part: { type: [string, 'null'] }
+        others_part: { type: [string, 'null'] }
+        help: { type: [string, 'null'] }
+        checking: { type: [string, 'null'] }
+        prior_attempt_id: { type: [string, 'null'], format: uuid }
+        role_ids:
+          type: array
+          items: { type: string, format: uuid }
+    AttemptVersion:
+      type: object
+      required: [project_id, revision, editor_id, editor_name, details]
+      properties:
+        project_id: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        editor_id: { type: string, format: uuid }
+        editor_name: { type: string }
+        details: { $ref: '#/components/schemas/AttemptDetails' }
+    SkillEvidence:
+      allOf:
+        - $ref: '#/components/schemas/EvidenceSource'
+        - type: object
+          required: [learner_id, reason, independence, withdrawn, project_ids]
+          properties:
+            learner_id: { type: string, format: uuid }
+            reason: { type: string }
+            independence: { enum: [with_help, on_my_own, null] }
+            withdrawn: { type: boolean }
+            project_ids:
+              type: array
+              items: { type: string, format: uuid }
+    TransferSources:
+      type: object
+      required: [from_project_id, from_moment_id, to_project_id, to_moment_id, reason]
+      properties:
+        from_project_id: { type: string, format: uuid }
+        from_moment_id: { type: string, format: uuid }
+        to_project_id: { type: string, format: uuid }
+        to_moment_id: { type: string, format: uuid }
+        reason: { type: string }
+    SkillTransfer:
+      allOf:
+        - $ref: '#/components/schemas/TransferSources'
+        - type: object
+          required: [id, learner_id, learner_name, withdrawn, sources_active]
+          properties:
+            id: { type: string, format: uuid }
+            learner_id: { type: string, format: uuid }
+            learner_name: { type: string }
+            withdrawn: { type: boolean }
+            sources_active: { type: boolean }
     RelativeShareSelection:
       type: object
       additionalProperties: false
@@ -881,10 +1369,11 @@ components:
               uploader_name: { type: string }
     FamilyFile:
       type: object
-      required: [id, label, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name, source_url, copy_asset_id]
+      required: [id, label, media_type, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name, source_url, copy_asset_id]
       properties:
         id: { type: string, format: uuid }
         label: { type: string }
+        media_type: { type: string }
         uploader_id: { type: string, format: uuid }
         uploader_name: { type: string }
         activity_date: { type: [string, 'null'], format: date }
@@ -982,7 +1471,7 @@ components:
         confirmed: { type: boolean, description: Whether the exact scribed revision has an active learner confirmation }
     JournalComment:
       type: object
-      required: [id, author_id, author_name, body, kind, created_at, withdrawn]
+      required: [id, author_id, author_name, body, kind, created_at, withdrawn, share_id, feedback_writer, feedback_date, feedback_asset_id, feedback_uploader_name]
       properties:
         id: { type: string, format: uuid }
         author_id: { type: string, format: uuid }
@@ -991,6 +1480,11 @@ components:
         kind: { type: string, enum: [comment, suggestion] }
         created_at: { type: string, format: date-time }
         withdrawn: { type: boolean }
+        share_id: { type: [string, 'null'], format: uuid }
+        feedback_writer: { type: [string, 'null'] }
+        feedback_date: { type: [string, 'null'], format: date }
+        feedback_asset_id: { type: [string, 'null'], format: uuid }
+        feedback_uploader_name: { type: [string, 'null'] }
   requestBodies:
     ArchiveCopy:
       required: true
@@ -1022,6 +1516,23 @@ components:
               ceremony: { type: string }
               credential: { type: object, description: Browser WebAuthn credential JSON }
   responses:
+    EvidenceCreated:
+      description: Created record
+      headers:
+        Location:
+          schema: { type: string }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [id]
+            properties:
+              id: { type: string, format: uuid }
+    AttemptVersion:
+      description: Saved attempt details
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AttemptVersion' }
     RelativeInvitation:
       description: Pending invitation for the named guest
       headers:

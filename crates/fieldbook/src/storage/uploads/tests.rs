@@ -85,6 +85,13 @@ async fn session_named(pool: &PgPool, household: Uuid, role: &str, name: &str) -
     }
 }
 
+async fn uuid(pool: &PgPool) -> Uuid {
+    sqlx::query_scalar("SELECT gen_random_uuid()")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
 async fn household(pool: &PgPool) -> Uuid {
     sqlx::query_scalar("INSERT INTO households (label) VALUES ('Fictional B3.1') RETURNING id")
         .fetch_one(pool)
@@ -182,6 +189,7 @@ macro_rules! call {
     };
 }
 
+mod projects;
 mod shares;
 
 async fn part(

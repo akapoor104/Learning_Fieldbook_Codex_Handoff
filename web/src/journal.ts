@@ -51,6 +51,11 @@ export interface Comment {
   kind: 'comment' | 'suggestion';
   created_at: string;
   withdrawn: boolean;
+  share_id: string | null;
+  feedback_writer: string | null;
+  feedback_date: string | null;
+  feedback_asset_id: string | null;
+  feedback_uploader_name: string | null;
 }
 
 export interface MomentDraft {

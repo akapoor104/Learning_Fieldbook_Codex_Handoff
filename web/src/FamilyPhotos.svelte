@@ -5,11 +5,12 @@
   import { api, RequestError, type Session } from './identity';
   import { attachmentPath, inbox, matchPath, type Attachment } from './photos';
 
-  const { session, learner, moment, onauthlost }: {
+  const { session, learner, moment, onauthlost, onattachments }: {
     session: Session;
     learner: string;
     moment?: string;
     onauthlost: () => void;
+    onattachments?: (files: Attachment[]) => void;
   } = $props();
   let waiting = $state<Attachment[]>([]);
   let attached = $state<Attachment[]>([]);
@@ -40,6 +41,7 @@
         canMatch ? api<Attachment[]>(`${inbox}/${learner}`, 'GET', undefined, session.csrf_token) : [],
         moment ? api<Attachment[]>(`/moments/${moment}/attachments`, 'GET', undefined, session.csrf_token) : [],
       ]);
+      onattachments?.(attached);
     } catch (failure) {
       if (!sessionError(failure)) error = 'The family files could not load.';
     } finally {

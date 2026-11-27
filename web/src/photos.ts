@@ -5,6 +5,7 @@ import { api, RequestError } from './identity';
 export interface Attachment {
   id: string;
   label: string;
+  media_type: string;
   uploader_id: string;
   uploader_name: string;
   activity_date: string | null;

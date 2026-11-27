@@ -5,6 +5,8 @@
 
   import Diary from './Diary.svelte';
   import Journal from './Journal.svelte';
+  import GuestShares from './GuestShares.svelte';
+  import Projects from './Projects.svelte';
   import ParentAccess from './ParentAccess.svelte';
 
   type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos' | 'diary'
@@ -28,6 +30,8 @@
   let requestedDiaryToken: string | null = null;
   let parentAccessEnded = $state(false);
   let entryMoment = $state<string | null>(null);
+  let projectEntry = $state<{ kind: 'projects' | 'skills'; id: string } | null>(null);
+  let enterProjects = false;
   let heading = $state<HTMLHeadingElement>();
   let nameField = $state<HTMLInputElement>();
   let inviteField = $state<HTMLInputElement>();
@@ -66,6 +70,8 @@
     requestedDiaryToken = null;
     parentAccessEnded = false;
     entryMoment = null;
+    projectEntry = null;
+    enterProjects = false;
   }
 
   function applySession(next: Session, requestedAt = performance.now()) {
@@ -94,11 +100,14 @@
       view = 'diary';
     } else if (entryParentAccess && next.actor.role === 'guardian') {
       view = 'parent-access';
+    } else if (enterProjects && next.actor.role !== 'guest') {
+      view = 'projects';
     } else if (entryMoment && next.actor.role !== 'guest') {
       view = 'journal';
     }
     entryDiary = false;
     entryParentAccess = false;
+    enterProjects = false;
     sessionCheckError = false;
     covered = closingDiary || checkAfterAction || document.visibilityState === 'hidden';
     if (covered) hidePrivate();
@@ -163,6 +172,9 @@
     entryDiary = window.location.pathname === '/diary/';
     entryParentAccess = window.location.pathname === parentAccessPath;
     entryMoment = new URLSearchParams(window.location.search).get('moment');
+    const match = /^\/(projects|skills)\/([0-9a-f-]{36})\/$/i.exec(window.location.pathname);
+    projectEntry = match ? { kind: match[1].toLowerCase() === 'projects' ? 'projects' : 'skills', id: match[2].toLowerCase() } : null;
+    enterProjects = projectEntry !== null;
   }
 
   onMount(() => {
@@ -243,7 +255,7 @@
       } else {
         const next = await authenticate(username.trim().toLowerCase());
         if (started !== revision) return;
-        if (['/diary/', parentAccessPath].includes(window.location.pathname)) readEntryLocation();
+        readEntryLocation();
         applySession(next);
         username = '';
         await tick();
@@ -345,6 +357,7 @@
   async function open(next: View) {
     if (!session || covered || session.diary_learner_id) return;
     parentAccessEnded = false;
+    projectEntry = null;
     view = next;
     await tick();
     if (next === 'home' || next === 'projects') heading?.focus();
@@ -409,12 +422,16 @@
           {/if}
         {:else if view === 'projects'}
           <h1 bind:this={heading} tabindex="-1">Projects</h1>
-          <p>No projects yet.</p>
+          {#key session.actor.id}
+            <Projects {session} entry={projectEntry} onauthlost={() => verify(true)} />
+          {/key}
         {:else if view === 'home'}
           <h1 bind:this={heading} tabindex="-1">Home</h1>
           {#if parentAccessEnded}<p role="status">Parent access ended.</p>{/if}
           {#if session.actor.role === 'guest'}
-            <p>No shared items yet.</p>
+            {#key session.actor.id}
+              <GuestShares {session} onauthlost={() => verify(true)} />
+            {/key}
           {:else}
             <h2>{session.actor.role === 'learner' ? 'What would you like to remember?' : 'Working together'}</h2>
             <div class="actions">

@@ -9,6 +9,7 @@ use super::{attachment_position, lock_moment, Actor, Failure};
 pub(in crate::journal) struct Attachment {
     id: Uuid,
     label: String,
+    media_type: String,
     uploader_id: Uuid,
     uploader_name: String,
     activity_date: Option<String>,
@@ -20,7 +21,7 @@ pub(in crate::journal) struct Attachment {
 }
 
 const ATTACHMENTS: &str = r#"
-    SELECT a.id, a.label, a.uploader_id, uploader.display_name AS uploader_name,
+    SELECT a.id, a.label, a.media_type, a.uploader_id, uploader.display_name AS uploader_name,
            to_char(inbox.activity_date, 'YYYY-MM-DD') AS activity_date,
            (inbox.asset_id IS NOT NULL) AS from_inbox,
            link.matched_by, matcher.display_name AS matched_by_name, a.source_url, a.copy_asset_id

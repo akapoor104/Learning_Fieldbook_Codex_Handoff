@@ -351,13 +351,6 @@ async fn named_guest_gets_only_pinned_material_and_revocation_survives_restart()
     server.abort();
 }
 
-async fn uuid(pool: &PgPool) -> Uuid {
-    sqlx::query_scalar("SELECT gen_random_uuid()")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
 async fn upload(
     address: SocketAddr,
     actor: &Session,

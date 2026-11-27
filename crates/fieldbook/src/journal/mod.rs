@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::identity::{diary::read_scope, routes::family_actor, Actor, Auth, Failure, CSRF};
 
+mod projects;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,7 @@ pub(crate) fn router() -> Router<Auth> {
         .route("/api/v1/moments/{id}/revisions", get(revisions))
         .route("/api/v1/moments/{id}/attachments", get(moment_attachments))
         .merge(archive::router())
+        .merge(projects::router())
         .route("/api/v1/family/photo-inbox/{learner}", get(photo_inbox))
         .route(
             "/api/v1/family/photo-inbox/{learner}/{asset}",
@@ -331,13 +333,31 @@ struct ConfirmMoment {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct AddComment {
-    submission_key: Uuid,
+pub(crate) struct AddComment {
+    pub(crate) submission_key: Uuid,
+    #[serde(default = "comment_kind")]
     kind: String,
-    body: String,
+    pub(crate) body: String,
+    feedback: Option<Feedback>,
 }
 
-use store::contributions::{self, Comment};
+fn comment_kind() -> String {
+    "comment".to_owned()
+}
+
+#[derive(Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Feedback {
+    writer: String,
+    date: Option<String>,
+    asset_id: Option<Uuid>,
+}
+
+pub(crate) use store::contributions::{
+    add_scoped_comment, scoped_comments, set_scoped_withdrawal, Comment,
+};
+
+use store::contributions;
 
 async fn confirm(
     State(auth): State<Auth>,

@@ -17,10 +17,11 @@ const fixture = JSON.parse(readFileSync(path.join(root, 'fixtures/household.json
 export const chromiumOptions = process.env.FIELDBOOK_TEST_CHROMIUM
   ? { executablePath: process.env.FIELDBOOK_TEST_CHROMIUM } : {};
 
-export const run = (...args) => execFileSync(binary, args, {
-  env: { ...process.env, DATABASE_URL: database },
+export const runIn = (fixtureDatabase, ...args) => execFileSync(binary, args, {
+  env: { ...process.env, DATABASE_URL: fixtureDatabase },
   encoding: 'utf8',
 }).trim();
+export const run = (...args) => runIn(database, ...args);
 
 export function provision(prefix = '') {
   const households = Object.fromEntries(fixture.households.map(

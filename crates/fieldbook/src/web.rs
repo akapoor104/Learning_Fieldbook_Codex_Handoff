@@ -12,6 +12,9 @@ use tower_http::services::ServeDir;
 pub(crate) fn router(root: PathBuf) -> Router {
     Router::new()
         .route("/", get(index))
+        .route("/shares/{id}/", get(index))
+        .route("/projects/{id}/", get(index))
+        .route("/skills/{id}/", get(index))
         .route("/diary/", get(index))
         .route("/diary/parent-access/", get(index))
         .with_state(root.join("index.html"))

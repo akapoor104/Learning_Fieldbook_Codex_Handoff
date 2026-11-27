@@ -332,15 +332,15 @@ async fn attachment_position(
 }
 
 #[derive(sqlx::FromRow)]
-struct MomentOwner {
+pub(super) struct MomentOwner {
     recorder_id: Uuid,
-    learner_id: Uuid,
+    pub(super) learner_id: Uuid,
     voice: String,
     revision: i32,
 }
 
 impl MomentOwner {
-    fn writer(&self) -> Uuid {
+    pub(super) fn writer(&self) -> Uuid {
         if self.voice == "guardian" {
             self.recorder_id
         } else {
@@ -349,7 +349,7 @@ impl MomentOwner {
     }
 }
 
-async fn lock_moment(
+pub(super) async fn lock_moment(
     tx: &mut Transaction<'_, Postgres>,
     household: Uuid,
     id: Uuid,

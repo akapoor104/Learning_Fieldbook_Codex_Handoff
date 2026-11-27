@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import type { Attachment } from './photos';
+  import FamilyShares from './FamilyShares.svelte';
   import FamilyPhotos from './FamilyPhotos.svelte';
   import { api, RequestError, type Session } from './identity';
   import { attribution, eventDate, readableDate, type Comment, type Moment, type MomentDraft } from './journal';
@@ -13,6 +15,9 @@
   } = $props();
 
   let comments = $state<Comment[] | null>(null);
+  let attachments = $state<Attachment[]>([]);
+  let feedback = $state({ writer: '', date: '', asset: '', body: '' });
+  let feedbackKey = crypto.randomUUID();
   let history = $state<Moment[] | null>(null);
   let error = $state('');
   let status = $state('');
@@ -153,6 +158,28 @@
     }
   }
 
+  async function postFeedback(event: SubmitEvent) {
+    event.preventDefault();
+    if (saving) return;
+    beginSave();
+    try {
+      await api(`${endpoint}/comments`, 'POST', {
+        submission_key: feedbackKey,
+        body: feedback.asset ? 'Teacher letter attached.' : feedback.body,
+        feedback: { writer: feedback.writer, date: feedback.date || null, asset_id: feedback.asset || null },
+      }, session.csrf_token);
+      if (!alive) return;
+      feedback = { writer: '', date: '', asset: '', body: '' };
+      feedbackKey = crypto.randomUUID();
+      await loadComments();
+      status = 'Teacher feedback recorded.';
+    } catch (failure) {
+      if (alive && !isSessionError(failure)) error = 'Feedback could not be saved. Check the writer, date and selected PDF.';
+    } finally {
+      saving = false;
+    }
+  }
+
   async function toggleComment(comment: Comment) {
     if (saving) return;
     beginSave();
@@ -235,7 +262,32 @@
   {/each}
 {/if}
 
-<FamilyPhotos {session} learner={moment.learner_id} moment={moment.id} {onauthlost} />
+<FamilyPhotos {session} learner={moment.learner_id} moment={moment.id} {onauthlost}
+  onattachments={(files) => attachments = files} />
+
+<FamilyShares {session} {moment} {onauthlost} oncomments={loadComments} />
+
+{#if session.actor.role === 'guardian'}
+  <details>
+    <summary>Record teacher feedback</summary>
+    <form onsubmit={postFeedback}>
+      <label>Teacher’s name <input bind:value={feedback.writer} required maxlength="200" /></label>
+      <label>Feedback date <input type="date" bind:value={feedback.date} /></label>
+      <label>Attached teacher PDF
+        <select bind:value={feedback.asset}>
+          <option value="">Record a paraphrase</option>
+          {#each attachments.filter((item) => !item.source_url && item.media_type === 'application/pdf') as file (file.id)}
+            <option value={file.id}>{file.label}</option>
+          {/each}
+        </select>
+      </label>
+      {#if !feedback.asset}
+        <label>Your paraphrase <textarea rows="3" bind:value={feedback.body} required></textarea></label>
+      {/if}
+      <button type="submit" disabled={saving}>Save teacher feedback</button>
+    </form>
+  </details>
+{/if}
 
 <h2>Comments</h2>
 {#if comments === null}<button type="button" class="quiet" onclick={loadComments}>Load comments</button>
@@ -244,9 +296,21 @@
   <ul>
     {#each comments as comment (comment.id)}
       <li class="entry">
-        <p class="hint">{comment.kind === 'suggestion' ? 'Suggestion' : 'Comment'} · {comment.author_name} · {readableDate(comment.created_at)}</p>
-        <p class="prose">{comment.body}</p>
-        {#if comment.author_id === session.actor.id}
+        <p class="hint">{#if comment.feedback_writer}
+            {#if comment.feedback_asset_id}Written by {comment.feedback_writer} · Uploaded by {comment.feedback_uploader_name}
+              {#if comment.feedback_uploader_name !== comment.author_name} · Recorded by {comment.author_name}{/if}
+            {:else}{comment.feedback_writer}’s observation · Paraphrased by {comment.author_name}{/if}
+            {#if comment.feedback_date} · {comment.feedback_date}{/if}
+          {:else}
+            {comment.share_id ? 'Shared comment' : comment.kind === 'suggestion' ? 'Suggestion' : 'Comment'} · {comment.author_name} · {readableDate(comment.created_at)}
+          {/if}</p>
+        <p class="prose">{comment.body}
+          {#if comment.feedback_asset_id}
+            {@const file = attachments.find(({ id }) => id === comment.feedback_asset_id)}
+            {#if file}<a href={`/media/${file.id}`} download>{file.label}</a>{/if}
+          {/if}
+        </p>
+        {#if comment.author_id === session.actor.id && !comment.share_id}
           <button type="button" class="quiet" disabled={saving} onclick={() => toggleComment(comment)}>
             {comment.withdrawn ? 'Restore comment' : 'Withdraw comment'}
           </button>
