@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::{activity_date, normalized_note, Actor, CreateMoment, EditMoment, Failure};
 
 pub(super) mod contributions;
+pub(super) mod photos;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub(super) struct Moment {
@@ -159,7 +160,7 @@ pub(super) async fn create(
     let id = if let Some(id) = inserted {
         insert_revision(&mut tx, actor, id, 1, note, date).await?;
         for (position, asset) in input.asset_ids.iter().enumerate() {
-            link_asset(&mut tx, actor, id, *asset, position as i16).await?;
+            link_asset(&mut tx, actor, id, *asset, position as i32).await?;
         }
         id
     } else {
@@ -178,7 +179,8 @@ pub(super) async fn create(
         }
         id
     };
-    let moment = snapshot(&mut *tx, actor.household_id, id, Some(1)).await?;
+    let mut moment = snapshot(&mut *tx, actor.household_id, id, Some(1)).await?;
+    moment.asset_ids.clone_from(&input.asset_ids);
     tx.commit().await?;
     Ok(moment)
 }
@@ -214,7 +216,7 @@ async fn link_asset(
     actor: &Actor,
     id: Uuid,
     asset: Uuid,
-    position: i16,
+    position: i32,
 ) -> Result<(), Failure> {
     let allowed = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM assets WHERE id = $1 AND household_id = $2 AND uploader_id = $3 FOR SHARE",
@@ -227,14 +229,23 @@ async fn link_asset(
     if allowed.is_none() {
         return Err(Failure::Missing);
     }
+    let in_inbox: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM family_photo_inbox WHERE asset_id = $1)")
+            .bind(asset)
+            .fetch_one(&mut **tx)
+            .await?;
+    if in_inbox {
+        return Err(Failure::Missing);
+    }
     let linked = sqlx::query(
-        "INSERT INTO moment_assets (moment_id, household_id, asset_id, position)
-         VALUES ($1, $2, $3, $4) ON CONFLICT (moment_id, asset_id) DO NOTHING",
+        "INSERT INTO moment_assets (moment_id, household_id, asset_id, position, matched_by)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (moment_id, asset_id) DO NOTHING",
     )
     .bind(id)
     .bind(actor.household_id)
     .bind(asset)
     .bind(position)
+    .bind(actor.id)
     .execute(&mut **tx)
     .await?;
     if linked.rows_affected() != 1 {

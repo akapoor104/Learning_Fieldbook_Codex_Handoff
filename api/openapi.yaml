@@ -338,6 +338,78 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/JournalComment' }
         '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read attachment metadata in family moment order
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/FamilyFiles' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /family/photo-inbox/{learner}:
+    parameters:
+      - $ref: '#/components/parameters/PhotoLearnerId'
+    get:
+      summary: List the learner’s unmatched family files
+      description: A guardian can select a learner in their household. A learner can read their own inbox.
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/FamilyFiles' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /family/photo-inbox/{learner}/{asset}:
+    parameters:
+      - $ref: '#/components/parameters/PhotoLearnerId'
+      - $ref: '#/components/parameters/PhotoAssetId'
+    put:
+      summary: Put the guardian’s verified original in a learner’s family inbox
+      description: Repeating the same learner, asset and date succeeds with the existing item.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                activity_date: { type: [string, 'null'], format: date }
+      responses:
+        '204': { description: Original available for matching }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: Asset already registered with different details or attached at capture }
+        '422': { description: Invalid activity date }
+  /family/photo-inbox/{asset}/match/{moment}:
+    parameters:
+      - $ref: '#/components/parameters/PhotoAssetId'
+      - in: path
+        name: moment
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Match an inbox original to a family moment for the same learner
+      description: A repeated match preserves the existing link and matcher. Each asset can have one active match.
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Match is active }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: Already matched to another moment }
+        '422': { description: Moment already has 20 attachments }
+    delete:
+      summary: Unmatch the file and retain the original in the learner’s inbox
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: This moment has no match for the asset }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '422': { description: Removing the only attachment would leave the moment empty }
   /uploads:
     post:
       summary: Begin a private upload or replay the same manifest
@@ -452,6 +524,16 @@ components:
       in: header
       name: X-CSRF-Token
   parameters:
+    PhotoLearnerId:
+      in: path
+      name: learner
+      required: true
+      schema: { type: string, format: uuid }
+    PhotoAssetId:
+      in: path
+      name: asset
+      required: true
+      schema: { type: string, format: uuid }
     UploadId:
       name: id
       in: path
@@ -468,6 +550,18 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    FamilyFile:
+      type: object
+      required: [id, label, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        uploader_id: { type: string, format: uuid }
+        uploader_name: { type: string }
+        activity_date: { type: [string, 'null'], format: date }
+        from_inbox: { type: boolean }
+        matched_by: { type: [string, 'null'], format: uuid }
+        matched_by_name: { type: [string, 'null'] }
     PrivateUpload:
       type: object
       required: [id, label, byte_count, received, media_type, asset_id]
@@ -572,6 +666,13 @@ components:
               ceremony: { type: string }
               credential: { type: object, description: Browser WebAuthn credential JSON }
   responses:
+    FamilyFiles:
+      description: Authorized file labels and attribution
+      content:
+        application/json:
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/FamilyFile' }
     UploadStatus:
       description: Current private upload state
       content:

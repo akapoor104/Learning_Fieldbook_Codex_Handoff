@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import FamilyPhotos from './FamilyPhotos.svelte';
   import { api, RequestError, type Session } from './identity';
   import { attribution, eventDate, readableDate, type Comment, type Moment, type MomentDraft } from './journal';
 
@@ -176,7 +177,6 @@
 
 <p class="hint">{attribution(moment)} · {eventDate(moment)}</p>
 {#if moment.note}<p class="prose">{moment.note}</p>{/if}
-{#if moment.asset_ids.length}<p>{moment.asset_ids.length} {moment.asset_ids.length === 1 ? 'attachment' : 'attachments'}</p>{/if}
 {#if moment.voice === 'scribed'}
   <p>{moment.confirmed ? 'Confirmed by the learner.' : 'Awaiting learner confirmation.'}</p>
 {/if}
@@ -234,6 +234,8 @@
     </section>
   {/each}
 {/if}
+
+<FamilyPhotos {session} learner={moment.learner_id} moment={moment.id} {onauthlost} />
 
 <h2>Comments</h2>
 {#if comments === null}<button type="button" class="quiet" onclick={loadComments}>Load comments</button>

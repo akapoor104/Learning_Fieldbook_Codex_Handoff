@@ -8,7 +8,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "npm run test:identity && node tests/notebook.mjs && node tests/journal.mjs",
     "test:identity": "node tests/identity.mjs",
-    "build": "vite build"
+    "build": "vite build",
+    "test:photos": "node tests/photos.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.2",

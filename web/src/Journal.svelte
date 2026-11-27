@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import MomentDetails from './MomentDetails.svelte';
+  import FamilyPhotos from './FamilyPhotos.svelte';
   import { api, RequestError, type Session } from './identity';
   import { attribution, eventDate, type Learner, type Moment, type MomentDraft } from './journal';
 
@@ -15,7 +16,7 @@
     session, panel, entryMoment, onvisited, onjournal, onauthlost,
   }: {
     session: Session;
-    panel: 'capture' | 'journal' | null;
+    panel: 'capture' | 'journal' | 'photos' | null;
     entryMoment: string | null;
     onvisited: () => void;
     onjournal: () => void;
@@ -49,7 +50,7 @@
     if (visiblePanel) void tick().then(() => show(visiblePanel));
   });
 
-  async function show(view: 'capture' | 'journal') {
+  async function show(view: 'capture' | 'journal' | 'photos') {
     if (!alive || panel !== view) return;
     error = '';
     if (view === 'journal') {
@@ -71,6 +72,7 @@
       }
       return;
     }
+    if (view === 'photos') heading?.focus();
     if (guardian && learners === null) {
       try {
         const loaded = await api<Learner[]>('/journal/learners', 'GET', undefined, session.csrf_token);
@@ -82,7 +84,7 @@
       }
     }
     await tick();
-    if (alive && panel === view) {
+    if (alive && panel === view && view === 'capture') {
       if (target) sentence?.focus();
       else chooser?.focus();
     }
@@ -225,6 +227,25 @@
       </div>
     {/if}
   </form>
+{:else if panel === 'photos'}
+  <h1 bind:this={heading} tabindex="-1">Family photos to match</h1>
+  {#if error}<p class="error" role="alert">{error}</p>{/if}
+  {#if guardian && learners === null && !error}<p role="status">Loading learners…</p>{/if}
+  {#if guardian && learners?.length === 0}<p>Add a learner account before saving a family photo.</p>{/if}
+  {#if guardian && (learners?.length ?? 0) > 1}
+    <label for="photo-learner">Learner</label>
+    <select id="photo-learner" value={learnerId} onchange={(event) => chooseLearner(event.currentTarget.value)}>
+      <option value="">Choose a learner</option>
+      {#each learners ?? [] as learner (learner.id)}
+        <option value={learner.id}>{learner.display_name}</option>
+      {/each}
+    </select>
+  {/if}
+  {#if target}
+    {#key target}
+      <FamilyPhotos {session} learner={target} {onauthlost} />
+    {/key}
+  {/if}
 {:else if panel === 'journal'}
   {#if selected}
     <h1 bind:this={heading} tabindex="-1">Moment</h1>

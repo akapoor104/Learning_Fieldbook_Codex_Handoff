@@ -21,6 +21,16 @@ pub(crate) fn router() -> Router<Auth> {
         .route("/moments/new/", post(create_form))
         .route("/api/v1/moments/{id}", get(read).patch(edit))
         .route("/api/v1/moments/{id}/revisions", get(revisions))
+        .route("/api/v1/moments/{id}/attachments", get(moment_attachments))
+        .route("/api/v1/family/photo-inbox/{learner}", get(photo_inbox))
+        .route(
+            "/api/v1/family/photo-inbox/{learner}/{asset}",
+            axum::routing::put(add_inbox_asset),
+        )
+        .route(
+            "/api/v1/family/photo-inbox/{asset}/match/{moment}",
+            post(match_asset).delete(unmatch_asset),
+        )
         .route("/api/v1/journal/learners", get(learners))
         .route(
             "/api/v1/moments/{id}/confirmation",
@@ -205,6 +215,88 @@ async fn learners(
 ) -> Result<Json<Vec<store::Learner>>, Failure> {
     let actor = family_actor(&auth, &headers, false).await?;
     Ok(Json(store::learners(&auth.pool, &actor).await?))
+}
+
+use store::photos::{self, Attachment};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AddInboxAsset {
+    activity_date: Option<String>,
+}
+
+async fn photo_inbox(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path(learner): Path<String>,
+) -> Result<Json<Vec<Attachment>>, Failure> {
+    let actor = family_actor(&auth, &headers, false).await?;
+    Ok(Json(
+        photos::list(&auth.pool, &actor, moment_id(&learner)?).await?,
+    ))
+}
+
+async fn add_inbox_asset(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path((learner, asset)): Path<(String, String)>,
+    Json(input): Json<AddInboxAsset>,
+) -> Result<StatusCode, Failure> {
+    let actor = family_actor(&auth, &headers, true).await?;
+    photos::add(
+        &auth.pool,
+        &actor,
+        moment_id(&learner)?,
+        moment_id(&asset)?,
+        activity_date(input.activity_date.as_deref())?,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn moment_attachments(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path(moment): Path<String>,
+) -> Result<Json<Vec<Attachment>>, Failure> {
+    let actor = family_actor(&auth, &headers, false).await?;
+    Ok(Json(
+        photos::linked(&auth.pool, &actor, moment_id(&moment)?).await?,
+    ))
+}
+
+async fn match_asset(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path((asset, moment)): Path<(String, String)>,
+) -> Result<StatusCode, Failure> {
+    let actor = family_actor(&auth, &headers, true).await?;
+    photos::set_match(
+        &auth.pool,
+        &actor,
+        moment_id(&moment)?,
+        moment_id(&asset)?,
+        true,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn unmatch_asset(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path((asset, moment)): Path<(String, String)>,
+) -> Result<StatusCode, Failure> {
+    let actor = family_actor(&auth, &headers, true).await?;
+    photos::set_match(
+        &auth.pool,
+        &actor,
+        moment_id(&moment)?,
+        moment_id(&asset)?,
+        false,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]

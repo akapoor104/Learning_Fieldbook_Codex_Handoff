@@ -4,7 +4,7 @@
 
   import Journal from './Journal.svelte';
 
-  type View = 'home' | 'projects' | 'capture' | 'journal';
+  type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos';
 
   let session = $state<Session | null>(null);
   let checking = $state(true);
@@ -314,6 +314,7 @@
             <div class="actions">
               <button type="button" onclick={() => open('capture')}>Write a sentence</button>
               <button type="button" class="quiet" onclick={() => open('journal')}>Family journal</button>
+              <button type="button" class="quiet" onclick={() => open('photos')}>Family photos to match</button>
             </div>
             {#if session.actor.role === 'guardian'}
               <div class="reauth">
@@ -325,7 +326,7 @@
         {/if}
         {#if session.actor.role !== 'guest'}
           {#key session.actor.id}
-            <Journal {session} panel={view === 'capture' || view === 'journal' ? view : null}
+            <Journal {session} panel={view === 'capture' || view === 'journal' || view === 'photos' ? view : null}
               {entryMoment} onvisited={() => entryMoment = null}
               onjournal={() => open('journal')} onauthlost={() => verify(true)} />
           {/key}
