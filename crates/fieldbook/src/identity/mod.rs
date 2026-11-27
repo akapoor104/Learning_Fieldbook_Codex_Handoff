@@ -42,6 +42,17 @@ pub fn router(
     secret: &str,
     web_root: std::path::PathBuf,
 ) -> io::Result<Router> {
+    router_with_media(pool, origin, rp, secret, web_root, None)
+}
+
+pub fn router_with_media(
+    pool: PgPool,
+    origin: &str,
+    rp: &str,
+    secret: &str,
+    web_root: std::path::PathBuf,
+    media: Option<crate::storage::PrivateMedia>,
+) -> io::Result<Router> {
     let invalid = |message| io::Error::new(io::ErrorKind::InvalidInput, message);
     let url = Url::parse(origin).map_err(|_| invalid("invalid FIELD_PUBLIC_ORIGIN"))?;
     if url.origin().ascii_serialization() != origin
@@ -80,6 +91,7 @@ pub fn router(
         .route("/api/v1/session/keep-alive", post(routes::keep_alive))
         .route("/api/v1/households/{id}", get(routes::household))
         .merge(crate::journal::router())
+        .merge(crate::storage::uploads::router(media))
         .with_state(state.clone())
         .merge(crate::web::router(web_root))
         .layer(middleware::from_fn_with_state(state, boundary)))

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use time::{macros::format_description, Date};
 use uuid::Uuid;
 
-use crate::identity::{routes::active_session, Actor, Auth, Failure, CSRF};
+use crate::identity::{routes::family_actor, Actor, Auth, Failure, CSRF};
 
 mod store;
 #[cfg(test)]
@@ -59,15 +59,6 @@ struct EditMoment {
     expected_revision: i32,
     note: Option<String>,
     activity_date: Option<String>,
-}
-
-async fn family_actor(auth: &Auth, headers: &HeaderMap, write: bool) -> Result<Actor, Failure> {
-    let (_, _, session) =
-        active_session(auth, headers, write || headers.contains_key(CSRF)).await?;
-    if !matches!(session.actor.role.as_str(), "learner" | "guardian") {
-        return Err(Failure::Missing);
-    }
-    Ok(session.actor)
 }
 
 fn activity_date(date: Option<&str>) -> Result<Option<Date>, Failure> {

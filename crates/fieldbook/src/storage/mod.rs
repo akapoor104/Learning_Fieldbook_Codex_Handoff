@@ -6,6 +6,9 @@ use sqlx::{
     PgPool,
 };
 
+pub(crate) mod uploads;
+pub use uploads::{sweep as sweep_uploads, PrivateMedia};
+
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 

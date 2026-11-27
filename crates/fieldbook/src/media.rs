@@ -2,12 +2,12 @@ use std::{env, fs, io};
 
 const MEDIA_ROOT: &str = "/var/data/fieldbook";
 
-pub fn validate() -> io::Result<()> {
+pub fn configured_media() -> io::Result<Option<fieldbook::storage::PrivateMedia>> {
     let invalid = |message| io::Error::new(io::ErrorKind::InvalidInput, message);
     match env::var("FIELD_STORAGE").as_deref() {
-        Err(env::VarError::NotPresent) => Ok(()),
+        Err(env::VarError::NotPresent) => Ok(None),
         Ok("gcs") if env::var("FIELD_GCS_BUCKET").is_ok_and(|name| !name.trim().is_empty()) => {
-            Ok(())
+            Ok(None)
         }
         Ok("gcs") => Err(invalid("set FIELD_GCS_BUCKET for gcs storage")),
         Ok("filesystem") => {
@@ -16,7 +16,9 @@ pub fn validate() -> io::Result<()> {
                 && fs::read_to_string("/proc/self/mountinfo")
                     .is_ok_and(|mounts| has_durable_media_mount(&mounts))
             {
-                Ok(())
+                Ok(Some(fieldbook::storage::PrivateMedia::new(
+                    MEDIA_ROOT.into(),
+                )))
             } else {
                 Err(invalid(
                     "filesystem storage requires a read-write persistent mount at /var/data/fieldbook",

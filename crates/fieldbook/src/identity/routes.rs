@@ -63,6 +63,19 @@ pub(crate) async fn active_session<'a>(
     Ok((raw, hash, session))
 }
 
+pub(crate) async fn family_actor(
+    auth: &Auth,
+    headers: &HeaderMap,
+    write: bool,
+) -> Result<Actor, Failure> {
+    let (_, _, session) =
+        active_session(auth, headers, write || headers.contains_key(CSRF)).await?;
+    if !matches!(session.actor.role.as_str(), "learner" | "guardian") {
+        return Err(Failure::Missing);
+    }
+    Ok(session.actor)
+}
+
 pub(super) async fn enroll_start(
     State(auth): State<Auth>,
     headers: HeaderMap,

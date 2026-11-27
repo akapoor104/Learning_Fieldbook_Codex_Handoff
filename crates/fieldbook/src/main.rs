@@ -29,7 +29,7 @@ async fn main() -> io::Result<()> {
 
 async fn serve() -> io::Result<()> {
     validate_hosted_settings()?;
-    media::validate()?;
+    let media = media::configured_media()?;
     let port = env::var("PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -54,7 +54,17 @@ async fn serve() -> io::Result<()> {
         let web_root = env::var_os("FIELD_WEB_ROOT")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| "web/dist".into());
-        router = router.merge(identity::router(pool, &origin, &rp, &secret, web_root)?);
+        router = router.merge(identity::router_with_media(
+            pool.clone(),
+            &origin,
+            &rp,
+            &secret,
+            web_root,
+            media.clone(),
+        )?);
+        if let Some(media) = media {
+            tokio::spawn(storage::sweep_uploads(pool, media));
+        }
     }
     let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, port)).await?;
     eprintln!("Fieldbook listening on {}", listener.local_addr()?);

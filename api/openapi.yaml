@@ -338,6 +338,109 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/JournalComment' }
         '404': { $ref: '#/components/responses/JournalMissing' }
+  /uploads:
+    post:
+      summary: Begin a private upload or replay the same manifest
+      description: >-
+        Requires filesystem media storage. Each manifest is scoped to the signed-in
+        learner or guardian. An unfinished upload expires after 24 hours without
+        committed progress. The creation response returns the current resume offset.
+      security:
+        - session: []
+          csrf: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [submission_key, label, byte_count, sha256, media_type]
+              properties:
+                submission_key: { type: string, format: uuid }
+                label: { type: string, minLength: 1, maxLength: 255, description: Trimmed display label of at most 255 UTF-8 bytes }
+                byte_count: { type: integer, format: int64, minimum: 1, maximum: 8589934592 }
+                sha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+                media_type:
+                  type: string
+                  enum: [application/octet-stream, application/pdf, application/zip, image/jpeg, image/png, image/webp, video/mp4, video/quicktime, video/webm]
+                  description: Use application/octet-stream for opaque project or source files.
+      responses:
+        '201':
+          description: Stable upload handle
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrivateUpload' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/UploadMissing' }
+        '409': { description: This submission key already identifies a different manifest or an expired upload awaiting cleanup }
+        '422': { description: Invalid manifest or unsupported declared media type }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+  /uploads/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UploadId'
+    get:
+      summary: Read the upload's committed resume offset and finalization state
+      security:
+        - session: []
+      responses:
+        '200': { $ref: '#/components/responses/UploadStatus' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/UploadMissing' }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+  /uploads/{id}/parts/{offset}:
+    parameters:
+      - $ref: '#/components/parameters/UploadId'
+      - name: offset
+        in: path
+        required: true
+        schema: { type: integer, format: int64, minimum: 0 }
+    put:
+      summary: Write a part at the committed offset or replay identical committed bytes
+      security:
+        - session: []
+          csrf: []
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200': { $ref: '#/components/responses/UploadStatus' }
+        '400': { description: Invalid offset syntax }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/UploadMissing' }
+        '409': { description: Wrong offset, out-of-bounds part, or changed replay. Read status to recover the current offset. }
+        '413': { description: Part exceeds 8 MiB }
+        '415': { description: Part requests require application/octet-stream }
+        '422': { description: Empty part }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+  /uploads/{id}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/UploadId'
+    post:
+      summary: Publish a verified immutable original and return its asset ID
+      description: >-
+        When the committed length, SHA-256 and declared format checks pass, the asset
+        can be saved to a family moment. Replays return the same asset ID. If
+        verification fails with 422, start a new upload with a new submission key.
+      security:
+        - session: []
+          csrf: []
+      responses:
+        '200': { $ref: '#/components/responses/UploadStatus' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/UploadMissing' }
+        '409': { description: Upload is incomplete }
+        '422': { description: The complete staged file failed its length, digest or signature check }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
 components:
   securitySchemes:
     session:
@@ -349,6 +452,11 @@ components:
       in: header
       name: X-CSRF-Token
   parameters:
+    UploadId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     MomentId:
       name: id
       in: path
@@ -360,6 +468,19 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    PrivateUpload:
+      type: object
+      required: [id, label, byte_count, received, media_type, asset_id]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        byte_count: { type: integer, format: int64 }
+        received: { type: integer, format: int64 }
+        media_type: { type: string }
+        asset_id:
+          type: [string, 'null']
+          format: uuid
+          description: Null until finalization commits.
     Session:
       type: object
       required: [actor, csrf_token, idle_seconds, elevated_seconds]
@@ -451,6 +572,15 @@ components:
               ceremony: { type: string }
               credential: { type: object, description: Browser WebAuthn credential JSON }
   responses:
+    UploadStatus:
+      description: Current private upload state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/PrivateUpload' }
+    UploadMissing:
+      description: Upload is absent, expired or inaccessible to this caller
+    UploadUnavailable:
+      description: Private filesystem or database is unavailable, or this host has no filesystem upload backend
     Ceremony:
       description: Two-minute, single-use WebAuthn ceremony
       content:

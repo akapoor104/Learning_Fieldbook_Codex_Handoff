@@ -42,6 +42,7 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo test --locked --test health -- --ignored
       - run: cargo test --locked --lib journal_retry_and_revision_recovery -- --ignored
+      - run: cargo test --locked --lib private_copy_resume_and_publish -- --ignored
       - run: cargo build --workspace --locked
       - working-directory: web
         run: |
