@@ -257,15 +257,6 @@ async fn diary_scope_selects_only_the_current_learner() {
     .unwrap();
     tx.commit().await.unwrap();
 
-    assert_eq!(store::diary(&pool, &learner).await.unwrap()[0].id, id);
-    assert_eq!(
-        store::diary_entry(&pool, &learner, id)
-            .await
-            .unwrap()
-            .note
-            .as_deref(),
-        Some(marker)
-    );
     for actor in [&learner, &guardian, &sibling] {
         let entries = store::list(&pool, actor).await.unwrap();
         assert_eq!(entries.len(), 1);
@@ -279,14 +270,29 @@ async fn diary_scope_selects_only_the_current_learner() {
             Err(Failure::Missing)
         ));
     }
-    for actor in [&sibling, &guardian, &guest, &outsider] {
+    use crate::identity::diary::learner_scope;
+
+    let learner = learner_scope(learner).unwrap();
+    assert_eq!(store::diary(&pool, &learner).await.unwrap()[0].id, id);
+    assert_eq!(
+        store::diary_entry(&pool, &learner, id)
+            .await
+            .unwrap()
+            .note
+            .as_deref(),
+        Some(marker)
+    );
+    for actor in [guardian, guest] {
+        assert!(matches!(learner_scope(actor), Err(Failure::Missing)));
+    }
+    for actor in [sibling, outsider] {
+        let scope = learner_scope(actor).unwrap();
         assert!(matches!(
-            store::diary_entry(&pool, actor, id).await,
+            store::diary_entry(&pool, &scope, id).await,
             Err(Failure::Missing)
         ));
+        assert!(store::diary(&pool, &scope).await.unwrap().is_empty());
     }
-    assert!(store::diary(&pool, &sibling).await.unwrap().is_empty());
-    assert!(store::diary(&pool, &outsider).await.unwrap().is_empty());
     assert!(matches!(
         store::diary_entry(&pool, &learner, ordinary.id).await,
         Err(Failure::Missing)

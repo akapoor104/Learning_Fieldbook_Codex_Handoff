@@ -9,7 +9,7 @@ use axum::{
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 
-use crate::identity::{diary_owner, routes::family_actor, Actor, Auth, Failure};
+use crate::identity::{diary::read_scope, routes::family_actor, Actor, Auth, Failure};
 
 use super::{files::original_key, upload_id, PrivateMedia};
 
@@ -20,7 +20,16 @@ pub(super) async fn original(
     request: Request,
 ) -> Result<Response, Failure> {
     let actor = family_actor(&auth, request.headers(), false).await?;
-    scoped_original(&auth, &actor, Uuid::nil(), media, upload_id(&id)?, request).await
+    scoped_original(
+        &auth,
+        &actor,
+        Uuid::nil(),
+        None,
+        media,
+        upload_id(&id)?,
+        request,
+    )
+    .await
 }
 
 pub(super) async fn diary_original(
@@ -29,15 +38,24 @@ pub(super) async fn diary_original(
     Path(id): Path<String>,
     request: Request,
 ) -> Result<Response, Failure> {
-    let actor = family_actor(&auth, request.headers(), false).await?;
-    let owner = diary_owner(&actor)?;
-    scoped_original(&auth, &actor, owner, media, upload_id(&id)?, request).await
+    let scope = read_scope(&auth, request.headers()).await?;
+    scoped_original(
+        &auth,
+        &scope.actor,
+        scope.learner_id,
+        scope.guardian_session_hash(),
+        media,
+        upload_id(&id)?,
+        request,
+    )
+    .await
 }
 
 async fn scoped_original(
     auth: &Auth,
     actor: &Actor,
     scope_owner: Uuid,
+    guardian_session_hash: Option<&[u8]>,
     media: Option<PrivateMedia>,
     id: Uuid,
     request: Request,
@@ -47,7 +65,11 @@ async fn scoped_original(
          FROM assets a JOIN assets original ON original.id = coalesce(a.copy_asset_id, a.id)
              AND original.household_id = a.household_id AND original.scope_owner = a.scope_owner
              AND original.source_url IS NULL
-         WHERE a.id = $1 AND a.household_id = $2 AND a.scope_owner = $3 AND (
+         WHERE a.id = $1 AND a.household_id = $2 AND a.scope_owner = $3
+           AND ($6::bytea IS NULL OR EXISTS (
+               SELECT 1 FROM active_diary_sessions d
+               WHERE d.token_hash = $6 AND d.household_id = a.household_id AND d.learner_id = a.scope_owner
+           )) AND (
              EXISTS (
                  SELECT 1 FROM moment_assets ma JOIN moments m ON m.id = ma.moment_id
                      AND m.household_id = ma.household_id
@@ -66,6 +88,7 @@ async fn scoped_original(
     .bind(scope_owner)
     .bind(actor.role == "guardian")
     .bind(actor.id)
+    .bind(guardian_session_hash)
     .fetch_optional(&auth.pool)
     .await?
     .ok_or(Failure::Missing)?;

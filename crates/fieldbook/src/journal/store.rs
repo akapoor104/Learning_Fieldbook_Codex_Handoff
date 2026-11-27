@@ -5,6 +5,8 @@ use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 use time::Date;
 use uuid::Uuid;
 
+use crate::identity::diary::ReadScope;
+
 use super::{activity_date, normalized_note, Actor, CreateMoment, EditMoment, Failure};
 
 pub(super) mod archive;
@@ -50,6 +52,10 @@ const MOMENT: &str = r#"
     LEFT JOIN moment_confirmations confirmation
       ON confirmation.moment_id = m.id AND confirmation.revision = r.revision
     WHERE m.household_id = $1 AND m.scope_owner = $2
+      AND ($3::bytea IS NULL OR EXISTS (
+          SELECT 1 FROM active_diary_sessions d
+          WHERE d.token_hash = $3 AND d.household_id = m.household_id AND d.learner_id = m.scope_owner
+      ))
 "#;
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -71,18 +77,24 @@ pub(super) async fn learners(pool: &PgPool, actor: &Actor) -> Result<Vec<Learner
 }
 
 pub(super) async fn list(pool: &PgPool, actor: &Actor) -> Result<Vec<Moment>, Failure> {
-    list_scope(pool, actor.household_id, Uuid::nil()).await
+    list_scope(pool, actor.household_id, Uuid::nil(), None).await
 }
 
-pub(super) async fn diary(pool: &PgPool, actor: &Actor) -> Result<Vec<Moment>, Failure> {
-    let owner = crate::identity::diary_owner(actor)?;
-    list_scope(pool, actor.household_id, owner).await
+pub(super) async fn diary(pool: &PgPool, scope: &ReadScope) -> Result<Vec<Moment>, Failure> {
+    list_scope(
+        pool,
+        scope.actor.household_id,
+        scope.learner_id,
+        scope.guardian_session_hash(),
+    )
+    .await
 }
 
 async fn list_scope(
     pool: &PgPool,
     household: Uuid,
     scope_owner: Uuid,
+    guardian_session_hash: Option<&[u8]>,
 ) -> Result<Vec<Moment>, Failure> {
     Ok(sqlx::query_as(&format!(
         "{MOMENT} AND r.revision = m.revision
@@ -91,6 +103,7 @@ async fn list_scope(
     ))
     .bind(household)
     .bind(scope_owner)
+    .bind(guardian_session_hash)
     .fetch_all(pool)
     .await?)
 }
@@ -99,9 +112,20 @@ pub(super) async fn read(pool: &PgPool, actor: &Actor, id: Uuid) -> Result<Momen
     snapshot(pool, actor.household_id, id, None).await
 }
 
-pub(super) async fn diary_entry(pool: &PgPool, actor: &Actor, id: Uuid) -> Result<Moment, Failure> {
-    let owner = crate::identity::diary_owner(actor)?;
-    scoped_snapshot(pool, actor.household_id, owner, id, None).await
+pub(super) async fn diary_entry(
+    pool: &PgPool,
+    scope: &ReadScope,
+    id: Uuid,
+) -> Result<Moment, Failure> {
+    scoped_snapshot(
+        pool,
+        scope.actor.household_id,
+        scope.learner_id,
+        scope.guardian_session_hash(),
+        id,
+        None,
+    )
+    .await
 }
 
 async fn snapshot<'e>(
@@ -110,21 +134,23 @@ async fn snapshot<'e>(
     id: Uuid,
     revision: Option<i32>,
 ) -> Result<Moment, Failure> {
-    scoped_snapshot(executor, household, Uuid::nil(), id, revision).await
+    scoped_snapshot(executor, household, Uuid::nil(), None, id, revision).await
 }
 
 async fn scoped_snapshot<'e>(
     executor: impl PgExecutor<'e>,
     household: Uuid,
     scope_owner: Uuid,
+    guardian_session_hash: Option<&[u8]>,
     id: Uuid,
     revision: Option<i32>,
 ) -> Result<Moment, Failure> {
     sqlx::query_as(&format!(
-        "{MOMENT} AND m.id = $3 AND r.revision = coalesce($4, m.revision)"
+        "{MOMENT} AND m.id = $4 AND r.revision = coalesce($5, m.revision)"
     ))
     .bind(household)
     .bind(scope_owner)
+    .bind(guardian_session_hash)
     .bind(id)
     .bind(revision)
     .fetch_optional(executor)
@@ -137,9 +163,10 @@ pub(super) async fn history(
     actor: &Actor,
     id: Uuid,
 ) -> Result<Vec<Moment>, Failure> {
-    let rows = sqlx::query_as(&format!("{MOMENT} AND m.id = $3 ORDER BY r.revision DESC"))
+    let rows = sqlx::query_as(&format!("{MOMENT} AND m.id = $4 ORDER BY r.revision DESC"))
         .bind(actor.household_id)
         .bind(Uuid::nil())
+        .bind(None::<&[u8]>)
         .bind(id)
         .fetch_all(pool)
         .await?;

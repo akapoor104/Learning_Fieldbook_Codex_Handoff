@@ -252,9 +252,55 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/MomentList' }
         '404': { $ref: '#/components/responses/JournalMissing' }
+  /diary/parent-access/start:
+    post:
+      summary: Start the signed-in guardian’s passkey challenge for a specific learner
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [learner_id, kind]
+              properties:
+                learner_id: { type: string, format: uuid }
+                kind: { type: string, enum: [view, recovery] }
+      responses:
+        '200': { $ref: '#/components/responses/Ceremony' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /diary/parent-access/finish:
+    post:
+      summary: Record access and rotate the guardian into a read-only diary session
+      description: The scope lasts up to five minutes and is bound to the learner selected at challenge start.
+      security: [{ session: [], csrf: [] }]
+      requestBody: { $ref: '#/components/requestBodies/Credential' }
+      responses:
+        '200': { $ref: '#/components/responses/NewSession' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '503': { description: Session or audit storage unavailable }
+  /diary/access-history:
+    get:
+      summary: Read durable guardian access events for the signed-in learner
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Access events in reverse chronological order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DiaryAccessEvent' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
   /diary:
     get:
-      summary: List entries in the signed-in learner’s own diary
+      summary: List entries in the current learner or audited guardian diary scope
       security: [{ session: [] }]
       responses:
         '200': { $ref: '#/components/responses/MomentList' }
@@ -264,7 +310,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/MomentId'
     get:
-      summary: Read an entry from the signed-in learner’s own diary
+      summary: Read an entry within the current diary scope
       security: [{ session: [] }]
       responses:
         '200': { $ref: '#/components/responses/JournalMoment' }
@@ -472,7 +518,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/UploadId'
     get:
-      summary: Stream the private original of an attachment from the signed-in learner’s own diary
+      summary: Stream the private original within the current diary scope
       description: Use the attachment ID. Supports a single byte range.
       security: [{ session: [] }]
       responses:
@@ -726,7 +772,7 @@ components:
           description: Null until finalization commits.
     Session:
       type: object
-      required: [actor, csrf_token, idle_seconds, elevated_seconds]
+      required: [actor, csrf_token, idle_seconds, elevated_seconds, diary_learner_id, diary_seconds]
       properties:
         actor:
           type: object
@@ -740,6 +786,21 @@ components:
         csrf_token: { type: string }
         idle_seconds: { type: integer, minimum: 1, maximum: 900 }
         elevated_seconds: { type: integer, minimum: 0, maximum: 300 }
+        diary_learner_id:
+          type: [string, 'null']
+          format: uuid
+          description: Learner selected by the active guardian diary session.
+        diary_seconds: { type: integer, minimum: 0, maximum: 300 }
+    DiaryAccessEvent:
+      type: object
+      required: [id, guardian_id, guardian_name, kind, recorded_at, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        guardian_id: { type: string, format: uuid }
+        guardian_name: { type: string }
+        kind: { type: string, enum: [view, recovery] }
+        recorded_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
     CreateMoment:
       type: object
       required: [submission_key]

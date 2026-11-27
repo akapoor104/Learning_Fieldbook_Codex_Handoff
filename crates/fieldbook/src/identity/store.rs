@@ -1,6 +1,7 @@
-use super::{hash_token, random_token, Actor, Failure, IDLE_SECONDS};
+use super::{diary, hash_token, random_token, Actor, Failure, IDLE_SECONDS};
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
+use time::OffsetDateTime;
 use uuid::Uuid;
 use webauthn_rs::prelude::Passkey;
 
@@ -138,6 +139,7 @@ pub(super) enum Purpose {
     Enroll,
     SignIn,
     StepUp,
+    Diary,
 }
 
 impl Purpose {
@@ -146,6 +148,7 @@ impl Purpose {
             Self::Enroll => "enroll",
             Self::SignIn => "sign-in",
             Self::StepUp => "step-up",
+            Self::Diary => "diary",
         }
     }
 }
@@ -296,13 +299,18 @@ pub(crate) struct Session {
     pub actor: Actor,
     pub idle_seconds: i32,
     pub elevated_seconds: i32,
+    pub diary_learner_id: Option<Uuid>,
+    pub diary_seconds: i32,
 }
 
 const SESSION_QUERY: &str = "SELECT a.*,
-        ceil(extract(epoch FROM least(s.idle_until, s.expires_at) - now()))::int AS idle_seconds,
-        greatest(0, ceil(extract(epoch FROM s.elevated_until - now())))::int AS elevated_seconds
+        ceil(extract(epoch FROM least(s.idle_until, s.expires_at) - statement_timestamp()))::int AS idle_seconds,
+        greatest(0, ceil(extract(epoch FROM s.elevated_until - statement_timestamp())))::int AS elevated_seconds,
+        d.learner_id AS diary_learner_id,
+        greatest(0, ceil(extract(epoch FROM d.expires_at - statement_timestamp())))::int AS diary_seconds
      FROM sessions s JOIN actors a ON a.id = s.actor_id AND a.household_id = s.household_id
-     WHERE s.token_hash = $1 AND s.idle_until > now() AND s.expires_at > now()";
+     LEFT JOIN active_diary_sessions d ON d.token_hash = s.token_hash
+     WHERE s.token_hash = $1 AND s.idle_until > statement_timestamp() AND s.expires_at > statement_timestamp()";
 
 pub(super) async fn session(pool: &PgPool, hash: &[u8]) -> Result<Option<Session>, Failure> {
     Ok(sqlx::query_as(SESSION_QUERY)
@@ -316,46 +324,57 @@ pub(super) async fn new_session(
     actor: &Actor,
     hash: &[u8],
     previous: Option<&[u8]>,
+    diary: Option<diary::AccessRequest>,
 ) -> Result<Session, Failure> {
-    if let Some(previous) = previous {
+    let (expires_at, event, step_up) = if let Some(previous) = previous {
         if actor.role != "guardian" {
             return Err(Failure::Forbidden);
         }
-        let inserted = sqlx::query(
-            "WITH prior AS (
-                DELETE FROM sessions
-                WHERE token_hash = $1 AND actor_id = $2 AND idle_until > now() AND expires_at > now()
-                RETURNING actor_id, household_id, expires_at
-             )
-             INSERT INTO sessions (token_hash, actor_id, household_id, idle_until, expires_at, elevated_until)
-             SELECT $3, actor_id, household_id, now() + make_interval(secs => $4),
-                    expires_at, now() + interval '5 minutes' FROM prior",
+        let expires_at: OffsetDateTime = sqlx::query_scalar(
+            "DELETE FROM sessions
+             WHERE token_hash = $1 AND actor_id = $2 AND household_id = $3
+               AND idle_until > statement_timestamp() AND expires_at > statement_timestamp()
+             RETURNING expires_at",
         )
         .bind(previous)
         .bind(actor.id)
-        .bind(hash)
-        .bind(IDLE_SECONDS)
-        .execute(&mut **tx)
-        .await?;
-        if inserted.rows_affected() != 1 {
-            return Err(Failure::Unauthorized);
-        }
-    } else {
-        sqlx::query(
-            "INSERT INTO sessions (token_hash, actor_id, household_id, idle_until, expires_at)
-             VALUES ($1, $2, $3, now() + make_interval(secs => $4), now() + interval '8 hours')",
-        )
-        .bind(hash)
-        .bind(actor.id)
         .bind(actor.household_id)
-        .bind(IDLE_SECONDS)
-        .execute(&mut **tx)
-        .await?;
-    }
-    Ok(sqlx::query_as(SESSION_QUERY)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(Failure::Unauthorized)?;
+        let event = match diary {
+            Some(request) => Some(diary::append_event(tx, actor, request, expires_at).await?),
+            None => None,
+        };
+        (Some(expires_at), event, event.is_none())
+    } else {
+        (None, None, false)
+    };
+    sqlx::query(
+        "INSERT INTO sessions (token_hash, actor_id, household_id, idle_until, expires_at,
+                          diary_event_id, diary_previous_hash, elevated_until)
+         VALUES ($1, $2, $3, statement_timestamp() + make_interval(secs => $4),
+                 coalesce($5, statement_timestamp() + interval '8 hours'), $6,
+                 $7, CASE WHEN $8 THEN statement_timestamp() + interval '5 minutes' END)",
+    )
+    .bind(hash)
+    .bind(actor.id)
+    .bind(actor.household_id)
+    .bind(IDLE_SECONDS)
+    .bind(expires_at)
+    .bind(event)
+    .bind(previous.filter(|_| event.is_some()))
+    .bind(step_up)
+    .execute(&mut **tx)
+    .await?;
+    let session: Session = sqlx::query_as(SESSION_QUERY)
         .bind(hash)
         .fetch_one(&mut **tx)
-        .await?)
+        .await?;
+    if event.is_some() && session.diary_learner_id.is_none() {
+        return Err(Failure::Unauthorized);
+    }
+    Ok(session)
 }
 
 pub(super) async fn refresh(pool: &PgPool, hash: &[u8]) -> Result<(), Failure> {
@@ -373,10 +392,27 @@ pub(super) async fn refresh(pool: &PgPool, hash: &[u8]) -> Result<(), Failure> {
     Ok(())
 }
 
+pub(super) async fn has_diary_successor(pool: &PgPool, hash: &[u8]) -> Result<bool, Failure> {
+    Ok(
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM sessions WHERE diary_previous_hash = $1)")
+            .bind(hash)
+            .fetch_one(pool)
+            .await?,
+    )
+}
+
 pub(super) async fn delete_session(pool: &PgPool, hash: &[u8]) -> Result<(), Failure> {
+    let mut tx = pool.begin().await?;
+    // This DELETE serializes with rotation on the previous row. The second
+    // statement gets a fresh snapshot and can revoke a just-committed diary successor.
     sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
         .bind(hash)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    sqlx::query("DELETE FROM sessions WHERE diary_previous_hash = $1")
+        .bind(hash)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
 }

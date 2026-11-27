@@ -7,6 +7,7 @@ import { chromiumOptions, database, origin, provision, run, virtualAuthenticator
 
 const fixture = JSON.parse(readFileSync(new URL('../../fixtures/household.json', import.meta.url), 'utf8'));
 const entry = fixture.moments.find(({ visibility }) => visibility === 'diary');
+const parentAccess = process.argv.includes('--parent-access');
 const prefix = `diary-${randomUUID().slice(0, 8)}-`;
 const { households, actors } = provision(prefix);
 const learnerId = actors[entry.learner];
@@ -53,6 +54,196 @@ async function get(page, path, status, method = 'GET', headers = {}) {
     if (method === 'GET') assert.deepEqual(await response.json(), { error: 'not_found' });
   }
   return response;
+}
+
+const accessRoute = '/api/v1/diary/parent-access';
+const historyRoute = '/api/v1/diary/access-history';
+
+async function session(page) {
+  return (await get(page, '/api/v1/session', 200)).json();
+}
+
+async function post(page, route, csrf, data, cookie) {
+  const headers = { Origin: origin, 'X-CSRF-Token': csrf };
+  if (cookie) headers.Cookie = cookie;
+  return page.request.post(origin + route, { headers, data });
+}
+
+async function assertion(page, csrf, kind) {
+  const start = await post(page, accessRoute + '/start', csrf, { learner_id: learnerId, kind });
+  assert.equal(start.status(), 200);
+  const { ceremony, options } = await start.json();
+  const credential = await page.evaluate(async (data) => {
+    const publicKey = PublicKeyCredential.parseRequestOptionsFromJSON(data);
+    return (await navigator.credentials.get({ publicKey })).toJSON();
+  }, options.publicKey);
+  return { ceremony, credential };
+}
+
+async function parentJourney(learner, otherPages, diaryPath, diaryMedia, family) {
+  const one = otherPages.find(({ id }) => id === 'parent-one').page;
+  const two = otherPages.find(({ id }) => id === 'parent-two').page;
+  const outsider = otherPages.find(({ id }) => id === 'other-parent').page;
+  const relative = otherPages.find(({ id }) => id === 'relative').page;
+  const sibling = otherPages.find(({ id }) => id === 'second-learner').page;
+  const oneBefore = await session(one);
+  const twoBefore = await session(two);
+  const siblingId = actors['second-learner'];
+  const siblingDiary = randomUUID();
+  const household = households.A;
+  sql(`BEGIN;
+    INSERT INTO moments (id, household_id, learner_id, recorder_id, submission_key, submission_hash, voice, visibility)
+      VALUES ('${siblingDiary}', '${household}', '${siblingId}', '${siblingId}', '${randomUUID()}',
+        decode(repeat('00', 32), 'hex'), 'student', 'diary');
+    INSERT INTO moment_revisions (moment_id, household_id, revision, editor_id, note)
+      VALUES ('${siblingDiary}', '${household}', 1, '${siblingId}', 'A second learner’s diary example.');
+    COMMIT;`);
+  assert.equal((await post(one, accessRoute + '/start', 'invalid',
+    { learner_id: learnerId, kind: 'view' })).status(), 403);
+  const firstProof = await assertion(one, oneBefore.csrf_token, 'view');
+  assert.equal((await post(one, accessRoute + '/finish', 'invalid', firstProof)).status(), 403);
+  const count = () => sql(`SELECT count(*) FROM diary_access_events WHERE household_id = '${household}'`);
+  const firstCookie = (await one.context().cookies())[0];
+  assert(firstCookie);
+  const firstCookieHeader = `${firstCookie.name}=${firstCookie.value}`;
+
+  assert.equal((await post(one, '/api/v1/auth/step-up/finish', oneBefore.csrf_token, firstProof)).status(), 401);
+  assert.equal((await post(two, accessRoute + '/finish', twoBefore.csrf_token, firstProof)).status(), 401);
+  for (const [page, target, status] of [[one, actors['other-learner'], 404],
+    [outsider, learnerId, 404], [relative, learnerId, 403], [learner, learnerId, 403]]) {
+    assert.equal((await post(page, accessRoute + '/start', (await session(page)).csrf_token,
+      { learner_id: target, kind: 'view' })).status(), status);
+  }
+  assert.deepEqual(await (await get(learner, historyRoute, 200)).json(), []);
+
+  // Fail audit insertion after the assertion is verified and rotation has started.
+  sql(`CREATE FUNCTION deny_test_diary_access() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.guardian_id = '${actors['parent-one']}' THEN RAISE EXCEPTION 'test audit storage failure'; END IF;
+        RETURN NEW;
+      END; $$;
+      CREATE TRIGGER deny_test_diary_access BEFORE INSERT ON diary_access_events
+        FOR EACH ROW EXECUTE FUNCTION deny_test_diary_access();`);
+  try {
+    const failed = await post(one, accessRoute + '/finish', oneBefore.csrf_token, firstProof);
+    assert.equal(failed.status(), 503);
+    assert.equal(failed.headers()['set-cookie'], undefined);
+    assert.deepEqual(await failed.json(), { error: 'unavailable' });
+  } finally {
+    sql('DROP TRIGGER deny_test_diary_access ON diary_access_events; DROP FUNCTION deny_test_diary_access();');
+  }
+  assert.equal(count(), '0');
+  const afterFailure = await session(one);
+  assert.equal(afterFailure.csrf_token, oneBefore.csrf_token);
+  assert.equal(afterFailure.diary_learner_id, null);
+  await get(one, '/api/v1/moments', 200);
+  await get(one, diaryPath, 404);
+  await get(one, diaryMedia, 404, 'HEAD');
+  assert.equal((await post(one, accessRoute + '/finish', oneBefore.csrf_token, firstProof)).status(), 401);
+
+  const retry = await assertion(one, oneBefore.csrf_token, 'view');
+  const finished = await Promise.all([1, 2].map(() =>
+    post(one, accessRoute + '/finish', oneBefore.csrf_token, retry, firstCookieHeader)));
+  assert.deepEqual(finished.map((response) => response.status()).sort(), [200, 401]);
+  const elevated = await finished.find((response) => response.ok()).json();
+  assert.notEqual(elevated.csrf_token, oneBefore.csrf_token);
+  assert.equal(elevated.diary_learner_id, learnerId);
+  assert(elevated.diary_seconds > 0 && elevated.diary_seconds <= 300);
+  assert.equal(elevated.elevated_seconds, 0);
+  assert.equal(count(), '1');
+  assert.equal((await one.request.get(origin + diaryPath, { headers: { Cookie: firstCookieHeader } })).status(), 401);
+  assert.equal((await (await get(one, diaryPath, 200)).json()).asset_ids.length, 1);
+  assert.deepEqual((await (await get(one, '/api/v1/diary', 200)).json()).map(({ id }) => id), [diaryId]);
+  const bytes = await get(one, diaryMedia, 206, 'GET', { Range: 'bytes=0-15' });
+  assert.deepEqual(await bytes.body(), photo.subarray(0, 16));
+  await get(one, diaryMedia, 200, 'HEAD');
+  await get(one, '/api/v1/moments', 404);
+  await get(one, '/api/v1/diary/' + family.id, 404);
+  await get(one, '/api/v1/diary/' + siblingDiary, 404);
+  await get(one, historyRoute, 404);
+  assert.equal((await one.request.patch(origin + diaryPath, {
+    headers: { Origin: origin, 'X-CSRF-Token': elevated.csrf_token },
+    data: { expected_revision: 1, note: 'Attempted diary edit' },
+  })).status(), 405);
+  await write(one, 'POST', '/moments', { submission_key: randomUUID(), note: 'Diary mode attempt' }, 404);
+  await write(one, 'POST', '/assets/links', {
+    submission_key: randomUUID(), label: 'Diary mode attempt', source_url: 'https://example.invalid',
+  }, 404);
+  assert.equal((await post(one, '/api/v1/auth/step-up/start', elevated.csrf_token)).status(), 403);
+  assert.equal((await post(one, accessRoute + '/start', elevated.csrf_token,
+    { learner_id: learnerId, kind: 'view' })).status(), 403);
+  await get(two, diaryPath, 404);
+  const rotatedCookie = (await one.context().cookies())[0];
+  assert(rotatedCookie);
+  const rotatedCookieHeader = `${rotatedCookie.name}=${rotatedCookie.value}`;
+  assert.equal((await one.request.delete(origin + '/api/v1/session', {
+    headers: { Origin: origin, Cookie: firstCookieHeader, 'X-CSRF-Token': 'invalid' },
+  })).status(), 403);
+  const logout = await one.request.delete(origin + '/api/v1/session', {
+    headers: { Origin: origin, Cookie: firstCookieHeader, 'X-CSRF-Token': oneBefore.csrf_token },
+  });
+  assert.equal(logout.status(), 204);
+  assert.equal((await one.request.get(origin + diaryPath, { headers: { Cookie: rotatedCookieHeader } })).status(), 401);
+  await get(one, diaryPath, 401);
+  await get(one, diaryMedia, 401, 'HEAD');
+  assert.equal(count(), '1');
+
+  // Expedite only this fixture’s expiry, leaving the normal session lifetime intact.
+  const recovery = await assertion(two, twoBefore.csrf_token, 'recovery');
+  sql(`CREATE FUNCTION shorten_test_diary_access() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.guardian_id = '${actors['parent-two']}' THEN
+          NEW.expires_at := NEW.recorded_at + interval '8 seconds';
+        END IF;
+        RETURN NEW;
+      END; $$;
+      CREATE TRIGGER shorten_test_diary_access BEFORE INSERT ON diary_access_events
+        FOR EACH ROW EXECUTE FUNCTION shorten_test_diary_access();`);
+  try {
+    const result = await post(two, accessRoute + '/finish', twoBefore.csrf_token, recovery);
+    assert.equal(result.status(), 200);
+    assert.notEqual((await result.json()).csrf_token, twoBefore.csrf_token);
+  } finally {
+    sql('DROP TRIGGER shorten_test_diary_access ON diary_access_events; DROP FUNCTION shorten_test_diary_access();');
+  }
+  assert.equal((await (await get(two, diaryPath, 200)).json()).note, entry.title);
+  const download = await get(two, diaryMedia, 200);
+  assert.equal(digest(await download.body()), digest(photo));
+  const refreshed = await write(two, 'POST', '/session/keep-alive', undefined, 200);
+  assert(refreshed.diary_seconds <= 8);
+  const deadline = Date.now() + 12000;
+  while ((await session(two)).diary_seconds > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  assert.equal((await session(two)).diary_learner_id, null);
+  await get(two, diaryPath, 404);
+  await get(two, diaryMedia, 404, 'HEAD');
+  await get(two, diaryMedia, 404, 'GET', { Range: 'bytes=0-15' });
+  assert.deepEqual((await (await get(two, '/api/v1/moments', 200)).json()).map(({ id }) => id), [family.id]);
+
+  await learner.reload();
+  const history = await (await get(learner, historyRoute, 200)).json();
+  assert.equal(count(), '2');
+  assert.deepEqual(history.map(({ guardian_id, kind }) => [guardian_id, kind]), [
+    [actors['parent-two'], 'recovery'], [actors['parent-one'], 'view'],
+  ]);
+  for (const event of history) {
+    assert(event.guardian_name.startsWith('Fixture parent-'));
+    assert(Date.parse(event.recorded_at) < Date.parse(event.expires_at));
+    assert(Date.parse(event.expires_at) - Date.parse(event.recorded_at) <= 300000);
+  }
+  assert.deepEqual(await (await get(sibling, historyRoute, 200)).json(), []);
+  for (const query of [
+    `UPDATE diary_access_events SET kind='view' WHERE id='${history[0].id}'`,
+    `DELETE FROM diary_access_events WHERE id='${history[0].id}'`,
+    'TRUNCATE diary_access_events CASCADE',
+  ]) {
+    const result = spawnSync('psql', psql(query), { encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /append-only/);
+  }
+  assert.deepEqual(await (await get(learner, historyRoute, 200)).json(), history);
+  return history;
 }
 
 try {
@@ -173,7 +364,9 @@ try {
   assert.equal(sql(`SELECT count(*) FROM family_assets WHERE household_id = '${households.A}'
     AND label LIKE '%${entry.title}%'`), '0');
   assert.equal(sql(`SELECT encode(sha256, 'hex') FROM assets WHERE id = '${file.id}'`), digest(photo));
+  const accessEvents = parentAccess ? await parentJourney(learner, otherPages, diaryPath, diaryMedia, family) : [];
   console.log(JSON.stringify({
+    accessEvents,
     fixture: entry.id, diaryId, fileId: file.id, familyId: family.id, sourceId: source.id,
     sha256: digest(photo), ordinaryActorsChecked: otherPages.map(({ id }) => id),
   }));

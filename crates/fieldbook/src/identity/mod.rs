@@ -17,6 +17,7 @@ use std::{io, sync::Arc};
 use url::Url;
 use webauthn_rs::prelude::{Webauthn, WebauthnBuilder};
 
+pub(crate) mod diary;
 pub(crate) mod routes;
 pub(crate) mod store;
 
@@ -84,6 +85,9 @@ pub fn router_with_media(
         .route("/api/v1/auth/sign-in/finish", post(routes::sign_in_finish))
         .route("/api/v1/auth/step-up/start", post(routes::step_up_start))
         .route("/api/v1/auth/step-up/finish", post(routes::step_up_finish))
+        .route("/api/v1/diary/parent-access/start", post(diary::start))
+        .route("/api/v1/diary/parent-access/finish", post(diary::finish))
+        .route("/api/v1/diary/access-history", get(diary::history))
         .route(
             "/api/v1/session",
             get(routes::session).delete(routes::sign_out),
@@ -255,12 +259,4 @@ pub(crate) struct Actor {
     pub(crate) role: String,
     #[serde(skip)]
     credential_generation: i64,
-}
-
-pub(crate) fn diary_owner(actor: &Actor) -> Result<uuid::Uuid, Failure> {
-    if actor.role == "learner" && !actor.id.is_nil() {
-        Ok(actor.id)
-    } else {
-        Err(Failure::Missing)
-    }
 }

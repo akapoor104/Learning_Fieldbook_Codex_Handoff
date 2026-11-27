@@ -9,6 +9,8 @@ export interface Session {
   csrf_token: string;
   idle_seconds: number;
   elevated_seconds: number;
+  diary_learner_id: string | null;
+  diary_seconds: number;
 }
 
 export class RequestError extends Error {

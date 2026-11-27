@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use time::{macros::format_description, Date};
 use uuid::Uuid;
 
-use crate::identity::{routes::family_actor, Actor, Auth, Failure, CSRF};
+use crate::identity::{diary::read_scope, routes::family_actor, Actor, Auth, Failure, CSRF};
 
 mod store;
 #[cfg(test)]
@@ -184,8 +184,8 @@ async fn diary(
     State(auth): State<Auth>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<store::Moment>>, Failure> {
-    let actor = family_actor(&auth, &headers, false).await?;
-    Ok(Json(store::diary(&auth.pool, &actor).await?))
+    let scope = read_scope(&auth, &headers).await?;
+    Ok(Json(store::diary(&auth.pool, &scope).await?))
 }
 
 async fn diary_entry(
@@ -193,9 +193,9 @@ async fn diary_entry(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<store::Moment>, Failure> {
-    let actor = family_actor(&auth, &headers, false).await?;
+    let scope = read_scope(&auth, &headers).await?;
     Ok(Json(
-        store::diary_entry(&auth.pool, &actor, moment_id(&id)?).await?,
+        store::diary_entry(&auth.pool, &scope, moment_id(&id)?).await?,
     ))
 }
 

@@ -11,7 +11,9 @@ use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PublicKeyCredential, RegisterPublicKeyCredential};
 
 use super::{
-    cookie, hash_token, one_header, random_token, set_cookie,
+    cookie,
+    diary::AccessRequest,
+    hash_token, one_header, random_token, set_cookie,
     store::{self, Purpose, Session},
     token_format, Actor, Auth, Failure, CSRF,
 };
@@ -50,10 +52,7 @@ pub(crate) async fn active_session<'a>(
     require_csrf: bool,
 ) -> Result<(&'a str, Vec<u8>, Session), Failure> {
     let raw = cookie(headers).ok_or(Failure::Unauthorized)?;
-    if require_csrf
-        && !one_header(headers, CSRF)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(auth.csrf(raw).as_bytes())))
-    {
+    if require_csrf && !valid_csrf(auth, headers, raw) {
         return Err(Failure::Forbidden);
     }
     let hash = auth.session_hash(raw);
@@ -63,6 +62,11 @@ pub(crate) async fn active_session<'a>(
     Ok((raw, hash, session))
 }
 
+fn valid_csrf(auth: &Auth, headers: &HeaderMap, raw: &str) -> bool {
+    one_header(headers, CSRF)
+        .is_some_and(|value| bool::from(value.as_bytes().ct_eq(auth.csrf(raw).as_bytes())))
+}
+
 pub(crate) async fn family_actor(
     auth: &Auth,
     headers: &HeaderMap,
@@ -70,7 +74,9 @@ pub(crate) async fn family_actor(
 ) -> Result<Actor, Failure> {
     let (_, _, session) =
         active_session(auth, headers, write || headers.contains_key(CSRF)).await?;
-    if !matches!(session.actor.role.as_str(), "learner" | "guardian") {
+    if session.diary_learner_id.is_some()
+        || !matches!(session.actor.role.as_str(), "learner" | "guardian")
+    {
         return Err(Failure::Missing);
     }
     Ok(session.actor)
@@ -125,7 +131,7 @@ pub(super) async fn sign_in_start(
 ) -> Result<Json<Value>, Failure> {
     require_signed_out(&auth, &headers).await?;
     let (actor, passkey) = store::login_actor(&auth.pool, &input.username).await?;
-    start_assertion(&auth, &actor, passkey, Purpose::SignIn, None).await
+    start_assertion(&auth, &actor, passkey, Purpose::SignIn, None, None).await
 }
 
 pub(super) async fn sign_in_finish(
@@ -142,11 +148,19 @@ pub(super) async fn step_up_start(
     headers: HeaderMap,
 ) -> Result<Json<Value>, Failure> {
     let (_, hash, session) = active_session(&auth, &headers, true).await?;
-    if session.actor.role != "guardian" {
+    if session.actor.role != "guardian" || session.diary_learner_id.is_some() {
         return Err(Failure::Forbidden);
     }
     let passkey = store::passkey(&auth.pool, session.actor.id).await?;
-    start_assertion(&auth, &session.actor, passkey, Purpose::StepUp, Some(&hash)).await
+    start_assertion(
+        &auth,
+        &session.actor,
+        passkey,
+        Purpose::StepUp,
+        Some(&hash),
+        None,
+    )
+    .await
 }
 
 pub(super) async fn step_up_finish(
@@ -155,31 +169,42 @@ pub(super) async fn step_up_finish(
     Json(input): Json<Finish<PublicKeyCredential>>,
 ) -> Result<Response, Failure> {
     let (_, hash, session) = active_session(&auth, &headers, true).await?;
-    if session.actor.role != "guardian" {
+    if session.actor.role != "guardian" || session.diary_learner_id.is_some() {
         return Err(Failure::Forbidden);
     }
     finish_assertion(&auth, input, Purpose::StepUp, Some(&hash)).await
 }
 
-async fn start_assertion(
+#[derive(Deserialize, Serialize)]
+struct DiaryChallenge {
+    diary: AccessRequest,
+    webauthn: Value,
+}
+
+pub(super) async fn start_assertion(
     auth: &Auth,
     actor: &Actor,
     passkey: Passkey,
     purpose: Purpose,
     session_hash: Option<&[u8]>,
+    diary: Option<AccessRequest>,
 ) -> Result<Json<Value>, Failure> {
     let (options, state) = auth
         .webauthn
         .start_passkey_authentication(&[passkey])
         .map_err(|_| Failure::Unavailable)?;
-    let ceremony = store::start_ceremony(
-        &auth.pool,
-        actor,
-        purpose,
-        session_hash,
-        serde_json::to_value(state).map_err(|_| Failure::Unavailable)?,
-    )
-    .await?;
+    let state = serde_json::to_value(state).map_err(|_| Failure::Unavailable)?;
+    let challenge = if let Some(request) = diary {
+        serde_json::to_value(DiaryChallenge {
+            webauthn: state,
+            diary: request,
+        })
+        .map_err(|_| Failure::Unavailable)?
+    } else {
+        state
+    };
+    let ceremony =
+        store::start_ceremony(&auth.pool, actor, purpose, session_hash, challenge).await?;
     Ok(Json(json!({ "ceremony": ceremony, "options": options })))
 }
 
@@ -195,15 +220,21 @@ async fn take_ceremony(
     store::take_ceremony(&auth.pool, token, purpose, session_hash).await
 }
 
-async fn finish_assertion(
+pub(super) async fn finish_assertion(
     auth: &Auth,
     input: Finish<PublicKeyCredential>,
     purpose: Purpose,
     previous: Option<&[u8]>,
 ) -> Result<Response, Failure> {
     let ceremony = take_ceremony(auth, &input.ceremony, purpose, previous).await?;
-    let state = serde_json::from_value(ceremony.challenge_state.clone())
-        .map_err(|_| Failure::Unavailable)?;
+    let (challenge, diary) = if matches!(purpose, Purpose::Diary) {
+        let diary: DiaryChallenge = serde_json::from_value(ceremony.challenge_state.clone())
+            .map_err(|_| Failure::Unavailable)?;
+        (diary.webauthn, Some(diary.diary))
+    } else {
+        (ceremony.challenge_state.clone(), None)
+    };
+    let state = serde_json::from_value(challenge).map_err(|_| Failure::Unavailable)?;
     let result = auth
         .webauthn
         .finish_passkey_authentication(&input.credential, &state)
@@ -216,7 +247,8 @@ async fn finish_assertion(
         .ok_or(Failure::Unauthorized)?;
     store::save_assertion(&mut tx, actor.id, result.counter(), &passkey).await?;
     let raw = random_token();
-    let session = store::new_session(&mut tx, &actor, &auth.session_hash(&raw), previous).await?;
+    let session =
+        store::new_session(&mut tx, &actor, &auth.session_hash(&raw), previous, diary).await?;
     tx.commit().await?;
     let mut response = session_response(auth, &raw, session).into_response();
     set_cookie(&mut response, &raw, 8 * 60 * 60);
@@ -264,9 +296,12 @@ pub(super) async fn sign_out(
     let mut response = StatusCode::NO_CONTENT.into_response();
     if let Some(raw) = cookie(&headers) {
         let hash = auth.session_hash(raw);
-        if store::session(&auth.pool, &hash).await?.is_some() {
-            active_session(&auth, &headers, true).await?;
+        if valid_csrf(&auth, &headers, raw) {
             store::delete_session(&auth.pool, &hash).await?;
+        } else if store::session(&auth.pool, &hash).await?.is_some()
+            || store::has_diary_successor(&auth.pool, &hash).await?
+        {
+            return Err(Failure::Forbidden);
         }
     }
     set_cookie(&mut response, "", 0);
@@ -280,7 +315,10 @@ pub(super) async fn household(
 ) -> Result<Json<Value>, Failure> {
     let (_, _, session) = active_session(&auth, &headers, false).await?;
     let id: Uuid = id.parse().map_err(|_| Failure::Missing)?;
-    if session.actor.household_id != id || session.actor.role == "guest" {
+    if session.actor.household_id != id
+        || session.actor.role == "guest"
+        || session.diary_learner_id.is_some()
+    {
         return Err(Failure::Missing);
     }
     let label: String = sqlx::query_scalar("SELECT label FROM households WHERE id = $1")
