@@ -1,0 +1,42 @@
+{
+  "ticket": "B1",
+  "revision": "0d6f396b32b1de918b9d4bd71c4647dc4b836a04",
+  "implementer": "Codex",
+  "reviewer": "Independent B1 identity and access reviewer",
+  "checks": {
+    "B1.1": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run npm --prefix web test through the packaged Home service and disposable PostgreSQL 16.",
+      "observed": "Virtual learner and two guardian credentials verified. Origin, CSRF, challenge replay, revocation and private-record 404 checks passed.",
+      "artifact": "B1.md",
+      "sha256": "e88ba0e3044e45cfa34d4f565755e9524c2593d0f274bb6da3338e536e7051a9",
+      "exit_code": 0
+    },
+    "B1.2": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run the notebook browser suite at 360 CSS px and 200% native Chromium zoom.",
+      "observed": "Keyboard capture and account switching passed. Browser Back showed the new actor without the previous draft.",
+      "artifact": "B1.md",
+      "sha256": "e88ba0e3044e45cfa34d4f565755e9524c2593d0f274bb6da3338e536e7051a9",
+      "exit_code": 0
+    },
+    "B1.3": {
+      "state": "not-run",
+      "kind": "device",
+      "procedure": "Perform the independent guardian rehearsal against an Android OS credential manager.",
+      "observed": "Chromium mobile viewport and touch emulation passed step-up and expiry. Android OS credential manager access remains untested.",
+      "artifact": "B1.md",
+      "sha256": "e88ba0e3044e45cfa34d4f565755e9524c2593d0f274bb6da3338e536e7051a9"
+    },
+    "T1": {
+      "state": "not-run",
+      "kind": "device",
+      "procedure": "Run the shared-computer and independent Android rehearsal on a disposable household.",
+      "observed": "The automated shared-browser and second-household checks passed. The Android device run remains pending.",
+      "artifact": "B1.md",
+      "sha256": "e88ba0e3044e45cfa34d4f565755e9524c2593d0f274bb6da3338e536e7051a9"
+    }
+  }
+}
