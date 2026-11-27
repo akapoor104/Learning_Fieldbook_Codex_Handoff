@@ -1,0 +1,49 @@
+{
+  "ticket": "B4",
+  "revision": "902b94aaeb1f67340b04f11a4b44a97be1d14f2a",
+  "implementer": "Codex",
+  "reviewer": "Independent Codex reviewer",
+  "checks": {
+    "B4.1": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run cargo test --workspace --locked and the isolated PostgreSQL 16 library tests. Run npm --prefix web run test:diary on a disposable Compose release and inspect the committed asset hash. Rehearse migration from B3.3.",
+      "observed": "The learner opened the seeded diary and downloaded its original. Ordinary guardians, the guest, another learner and the second household could not read the diary. The family note and filename selectors had zero marker matches. SQL rejected cross-scope attachments, inbox rows and archive copies. Browser, database and private-volume SHA-256 matched.",
+      "artifact": "B4.1.md",
+      "sha256": "b419f32701212b0a7963c464c7a086d383d484c3e2ada336fc943f02beea9de5",
+      "exit_code": 0
+    },
+    "B4.2": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "B4.3": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "T4": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "diary-scope": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    }
+  }
+}
