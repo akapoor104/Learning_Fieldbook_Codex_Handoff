@@ -1,0 +1,24 @@
+{
+  "revision": "426f7881c7e6165ea407f7fe24d8333611796c7f",
+  "selected": "home",
+  "hosts": {
+    "home": {
+      "state": "live-tested",
+      "observed": "The selected home profile preserved the fixture and media after starting from empty volumes and recreating both containers.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3"
+    },
+    "render": {
+      "state": "config-only",
+      "observed": "The CI job validated render.yaml against Render’s public schema. Paid rehearsal remains pending.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3"
+    },
+    "google": {
+      "state": "config-only",
+      "observed": "The CI job validated the Terraform configuration with its locked provider. Paid rehearsal remains pending.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3"
+    }
+  }
+}

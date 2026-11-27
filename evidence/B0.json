@@ -1,41 +1,44 @@
 {
   "ticket": "B0",
-  "revision": "",
+  "revision": "426f7881c7e6165ea407f7fe24d8333611796c7f",
   "implementer": "Codex",
-  "reviewer": "Independent deployment review",
+  "reviewer": "Independent B0.3 deployment review",
   "checks": {
     "B0.1": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Run the release binary in home Compose and probe the published loopback health and unknown routes.",
+      "observed": "The health probe returned status-only HTTP 200, the unknown route returned 404, and the disposable password did not appear in logs.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3",
+      "exit_code": 0
     },
     "B0.2": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Start an empty Compose project, migrate twice, stop and restart PostgreSQL, and recreate both containers.",
+      "observed": "One migration was applied. Readiness fell to 503 during the outage and recovered to 200. The fixture UUID and media checksum survived recreation.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3",
+      "exit_code": 0
     },
     "B0.3": {
       "state": "passed",
       "kind": "command",
-      "procedure": "Run Compose config, Render public schema and Terraform provider checks, then exercise the Docker release with disposable PostgreSQL 16 and the adverse media startup cases.",
-      "observed": "All three configuration checks passed locally. The home container rehearsal preserved fictional household A and its media marker after recreation and rejected ephemeral media. Hosted rehearsals are pending.",
-      "artifact": "B0.3.md",
-      "sha256": "31effaafa7b199ba314f8ba613b627769be68b1f3a2f3306bb6f493750b38bb7",
+      "procedure": "Run all three hosting workflow jobs locally with act and launch the image with ephemeral storage settings.",
+      "observed": "All three jobs passed. The release rejected /tmp, its image filesystem, and a tmpfs mount for durable media.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3",
       "exit_code": 0
     },
     "T0": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "Home restart evidence is recorded. Hosted rehearsals and GitHub Actions execution are pending.",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Run the home rehearsal from empty volumes and validate all three profiles using the candidate’s committed CI workflow.",
+      "observed": "The fictional fixture survived container recreation, all configuration jobs passed, and the two hosted profiles are recorded as configuration-only.",
+      "artifact": "T0.md",
+      "sha256": "2181184316ebb035b4131114f497409c1f2dc57d776462a0c5c4ce705b5ca4a3",
+      "exit_code": 0
     }
   }
 }
