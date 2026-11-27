@@ -15,6 +15,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: "${FIELD_IMAGE:-fieldbook:local}"
     build: .
     depends_on:
       db:

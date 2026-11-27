@@ -1,0 +1,6 @@
+project_id    = "fieldbook-prod-example"
+region        = "us-west1"
+media_bucket  = "fieldbook-prod-example-private-media"
+public_origin = "https://fieldbook.example.org"
+image         = "us-west1-docker.pkg.dev/fieldbook-example/releases/fieldbook@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+production    = true

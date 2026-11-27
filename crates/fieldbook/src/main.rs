@@ -4,6 +4,8 @@ use fieldbook::storage;
 use sqlx::{postgres::PgConnectOptions, PgPool};
 use tokio::net::TcpListener;
 
+mod media;
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> io::Result<()> {
     let mut args = env::args_os().skip(1);
@@ -23,6 +25,8 @@ async fn main() -> io::Result<()> {
 }
 
 async fn serve() -> io::Result<()> {
+    validate_hosted_settings()?;
+    media::validate()?;
     let port = env::var("PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -55,4 +59,29 @@ fn database_pool() -> io::Result<Option<PgPool>> {
         .map(storage::connect_lazy)
         .map(Some)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid DATABASE_URL"))
+}
+
+fn validate_hosted_settings() -> io::Result<()> {
+    if env::var("FIELD_ENV").as_deref() != Ok("production") {
+        return Ok(());
+    }
+
+    if !env::var("FIELD_DIARY_KEYRING").is_ok_and(|value| !value.trim().is_empty()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "set FIELD_DIARY_KEYRING for production",
+        ));
+    }
+
+    if !env::var("FIELD_PUBLIC_ORIGIN").is_ok_and(|value| {
+        url::Url::parse(&value)
+            .is_ok_and(|url| url.scheme() == "https" && url.origin().ascii_serialization() == value)
+    }) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "set FIELD_PUBLIC_ORIGIN to the canonical HTTPS origin",
+        ));
+    }
+
+    Ok(())
 }

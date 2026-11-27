@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: fieldbook-web
+    runtime: image
+    plan: starter
+    region: oregon
+    numInstances: 1
+    autoDeployTrigger: "off"
+    # Replace this sample reference with the published release digest before Blueprint setup.
+    image:
+      url: us-west1-docker.pkg.dev/fieldbook-example/releases/fieldbook@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      creds:
+        fromRegistryCreds:
+          name: fieldbook-release-reader
+    healthCheckPath: /readyz
+    preDeployCommand: fieldbook migrate
+    disk:
+      name: fieldbook-media
+      mountPath: /var/data/fieldbook
+      sizeGB: 5
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fieldbook-db
+          property: connectionString
+      - {key: FIELD_ENV, value: production}
+      - {key: FIELD_STORAGE, value: filesystem}
+      - {key: FIELD_MEDIA_ROOT, value: /var/data/fieldbook}
+      - {key: FIELD_PUBLIC_ORIGIN, sync: false}
+      - {key: FIELD_RP_ID, sync: false}
+      - {key: FIELD_SESSION_SECRET, generateValue: true}
+      - {key: FIELD_DIARY_KEYRING, sync: false}
+      - {key: FIELD_BACKUP_RECIPIENTS, sync: false}
+      - {key: FIELD_OUTSIDE_AI, value: "off"}
+
+databases:
+  - name: fieldbook-db
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "16"
+    diskSizeGB: 1
+    ipAllowList: []

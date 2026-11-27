@@ -1,0 +1,47 @@
+name: Hosting configuration
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  home:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --env-file .env.example config --quiet
+
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install PyYAML==6.0.2 jsonschema==4.23.0
+      - run: curl --fail --silent --show-error https://render.com/schema/render.yaml.json -o /tmp/render-schema.json
+      - run: |
+          python - <<'PY'
+          import json
+          import jsonschema
+          import yaml
+          with open("/tmp/render-schema.json") as schema, open("render.yaml") as blueprint:
+              jsonschema.validate(yaml.safe_load(blueprint), json.load(schema))
+          PY
+
+  google:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/google
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+      - run: terraform fmt -check
+      - run: terraform init -backend=false -lockfile=readonly
+      - run: terraform validate

@@ -1,0 +1,41 @@
+{
+  "ticket": "B0",
+  "revision": "",
+  "implementer": "Codex",
+  "reviewer": "Independent deployment review",
+  "checks": {
+    "B0.1": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "B0.2": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "B0.3": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run Compose config, Render public schema and Terraform provider checks, then exercise the Docker release with disposable PostgreSQL 16 and the adverse media startup cases.",
+      "observed": "All three configuration checks passed locally. The home container rehearsal preserved fictional household A and its media marker after recreation and rejected ephemeral media. Hosted rehearsals are pending.",
+      "artifact": "B0.3.md",
+      "sha256": "31effaafa7b199ba314f8ba613b627769be68b1f3a2f3306bb6f493750b38bb7",
+      "exit_code": 0
+    },
+    "T0": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "Home restart evidence is recorded. Hosted rehearsals and GitHub Actions execution are pending.",
+      "artifact": "",
+      "sha256": ""
+    }
+  }
+}

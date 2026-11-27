@@ -32,3 +32,17 @@ docker compose start db
 ```
 
 Use `docker compose down` to stop the stack and retain both volumes. This skeleton serves only status endpoints.
+
+## Run a published release
+
+For a rehearsal that compares hosts, set `FIELD_IMAGE` to the complete Artifact Registry reference pinned by digest used in Render and Google Cloud. Authenticate Docker to that registry first. The build command above is for local development.
+
+```sh
+docker compose pull web
+docker compose up -d --wait db
+docker compose run --rm --pull never web fieldbook migrate
+docker compose up -d --wait --no-build web
+python3 tools/probe_health.py http://127.0.0.1:8080
+```
+
+The release expects its named media volume at `/var/data/fieldbook`. Starting the image with filesystem storage and only its container filesystem, or a tmpfs at that mount point, must exit before serving.
