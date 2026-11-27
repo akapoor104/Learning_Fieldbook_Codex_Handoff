@@ -1,0 +1,49 @@
+{
+  "ticket": "B3",
+  "revision": "0168e74896a4cc30b47a5c5aef72187f9f771bd0",
+  "implementer": "Codex",
+  "reviewer": "Independent Codex reviewer",
+  "checks": {
+    "B3.1": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run cargo test --workspace --locked --lib -- --include-ignored --test-threads=1 --nocapture with disposable PostgreSQL 16. Rehearse an upload after service restart in the Chromium/Compose release.",
+      "observed": "Four fixture originals matched their manifests. The Chromium upload resumed at 1151 bytes and produced one asset and original. Missing and changed parts stayed unpublished. The journal linked the asset after finalization.",
+      "artifact": "B3.1.md",
+      "sha256": "04a54b18f87d2ebaa5d6cfb7b67d10b6c4f0b125c3c612ec0dbbe8da584b883c",
+      "exit_code": 0
+    },
+    "B3.2": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "B3.3": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "T3": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    },
+    "photo-match": {
+      "state": "not-run",
+      "kind": "command",
+      "procedure": "",
+      "observed": "",
+      "artifact": "",
+      "sha256": ""
+    }
+  }
+}
