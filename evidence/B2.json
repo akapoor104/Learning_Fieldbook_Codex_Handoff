@@ -1,0 +1,53 @@
+{
+  "ticket": "B2",
+  "revision": "02dff51173958455b780801e031b58b140d19cca",
+  "implementer": "Codex",
+  "reviewer": "Independent B2 journal schema and access reviewer",
+  "checks": {
+    "B2.1": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run the journal PostgreSQL integration test against a disposable PostgreSQL 16 database.",
+      "observed": "Concurrent replay returned one stable attributed moment. Blank text was rejected, a finalized asset stayed unchanged, and optimistic recovery kept prior wording.",
+      "artifact": "B2.md",
+      "sha256": "430ed29e6a58c92c62cd6a4561de323b52200e575f94f378e968e815991d7450",
+      "exit_code": 0
+    },
+    "B2.2": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Drive the real notebook editor through the Chromium browser suite.",
+      "observed": "Keyboard capture, double-tap, 422 draft retention, separate tab and learner selections, and account-switch clearing passed.",
+      "artifact": "B2.md",
+      "sha256": "430ed29e6a58c92c62cd6a4561de323b52200e575f94f378e968e815991d7450",
+      "exit_code": 0
+    },
+    "B2.3": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run learner and guardian flows through the production HTTP routes in Chromium.",
+      "observed": "A guardian posted and recovered a signed suggestion. Only the learner could change their own words or confirm current scribed words. A stale scribed confirmation was rejected.",
+      "artifact": "B2.md",
+      "sha256": "430ed29e6a58c92c62cd6a4561de323b52200e575f94f378e968e815991d7450",
+      "exit_code": 0
+    },
+    "T2": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run npm --prefix web test against the built Rust server, built Svelte client and disposable PostgreSQL 16.",
+      "observed": "The learner saved one sentence independently, a double submission made one entry, a guardian posted a suggestion, and the learner recovered earlier attributable wording. Validation kept the typed text.",
+      "artifact": "B2.md",
+      "sha256": "430ed29e6a58c92c62cd6a4561de323b52200e575f94f378e968e815991d7450",
+      "exit_code": 0
+    },
+    "journal-retry": {
+      "state": "passed",
+      "kind": "command",
+      "procedure": "Run python3 tools/run_cases.py --case journal-retry -- node web/tests/journal.mjs --case against the real local app.",
+      "observed": "The authorized concurrent HTTP submissions created one moment with the same ID on both responses and reload, voice student and zero added assets.",
+      "artifact": "B2.md",
+      "sha256": "430ed29e6a58c92c62cd6a4561de323b52200e575f94f378e968e815991d7450",
+      "exit_code": 0
+    }
+  }
+}
