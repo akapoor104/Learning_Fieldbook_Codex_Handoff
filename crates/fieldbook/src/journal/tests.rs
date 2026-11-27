@@ -244,9 +244,17 @@ async fn diary_scope_selects_only_the_current_learner() {
     .fetch_one(&mut *tx)
     .await
     .unwrap();
-    store::insert_revision(&mut tx, &learner, id, 1, Some(marker), None)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO moment_revisions (moment_id, household_id, revision, editor_id, note)
+         VALUES ($1, $2, 1, $3, $4)",
+    )
+    .bind(id)
+    .bind(family)
+    .bind(learner.id)
+    .bind(marker)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
 
     assert_eq!(store::diary(&pool, &learner).await.unwrap()[0].id, id);
