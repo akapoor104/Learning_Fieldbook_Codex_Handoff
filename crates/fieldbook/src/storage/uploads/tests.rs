@@ -52,9 +52,13 @@ struct Session {
 }
 
 async fn session(pool: &PgPool, household: Uuid, role: &str) -> Session {
+    session_named(pool, household, role, "Fictional uploader").await
+}
+
+async fn session_named(pool: &PgPool, household: Uuid, role: &str, name: &str) -> Session {
     let raw = URL_SAFE_NO_PAD.encode(random::<[u8; 32]>());
     let username = format!("upload-{:016x}", random::<u64>());
-    let actor = identity::provision_actor(pool, household, &username, "Fictional uploader", role)
+    let actor = identity::provision_actor(pool, household, &username, name, role)
         .await
         .unwrap();
     let mac = |purpose: &[u8]| {
@@ -109,21 +113,46 @@ async fn request(
     } else {
         String::new()
     };
+    let (status, _, bytes) = request_bytes(
+        address,
+        session,
+        method,
+        path,
+        &format!("{token}Content-Type: {content_type}\r\n"),
+        body,
+    )
+    .await;
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+async fn request_bytes(
+    address: SocketAddr,
+    session: &Session,
+    method: &str,
+    path: &str,
+    extra_headers: &str,
+    body: &[u8],
+) -> (u16, String, Vec<u8>) {
     let url = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {HOST}\r\nOrigin: {ORIGIN}\r\nCookie: {}\r\n{token}Content-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: {HOST}\r\nOrigin: {ORIGIN}\r\nCookie: {}\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
         session.cookie, body.len()
     );
     let mut connection = TcpStream::connect(address).await.unwrap();
     connection.write_all(url.as_bytes()).await.unwrap();
     connection.write_all(body).await.unwrap();
-    let mut response = String::new();
-    connection.read_to_string(&mut response).await.unwrap();
-    let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+    let mut response = Vec::new();
+    connection.read_to_end(&mut response).await.unwrap();
+    let split = response
+        .windows(4)
+        .position(|bytes| bytes == b"\r\n\r\n")
+        .unwrap();
+    let headers = String::from_utf8(response[..split].to_vec()).unwrap();
     let status = headers.split_whitespace().nth(1).unwrap().parse().unwrap();
-    if path.starts_with("/api/v1/") {
-        assert!(headers.contains("cache-control: no-store, private"));
-    }
-    (status, serde_json::from_str(body).unwrap_or(Value::Null))
+    assert!(headers.contains("cache-control: no-store, private"));
+    (status, headers, response.split_off(split + 4))
 }
 
 macro_rules! call {
@@ -152,6 +181,8 @@ macro_rules! call {
         .await
     };
 }
+
+mod shares;
 
 async fn part(
     address: SocketAddr,

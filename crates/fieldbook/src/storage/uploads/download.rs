@@ -9,7 +9,9 @@ use axum::{
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 
-use crate::identity::{diary::read_scope, routes::family_actor, Actor, Auth, Failure};
+use crate::identity::{
+    diary::read_scope, routes::family_actor, share_original, share_viewer, Actor, Auth, Failure,
+};
 
 use super::{files::original_key, upload_id, PrivateMedia};
 
@@ -49,6 +51,18 @@ pub(super) async fn diary_original(
         request,
     )
     .await
+}
+
+pub(super) async fn shared_original(
+    State(auth): State<Auth>,
+    Extension(media): Extension<Option<PrivateMedia>>,
+    Path((share, asset)): Path<(String, String)>,
+    request: Request,
+) -> Result<Response, Failure> {
+    let actor = share_viewer(&auth, request.headers(), false).await?;
+    let asset = upload_id(&asset)?;
+    let (key, label) = share_original(&auth, &actor, upload_id(&share)?, asset).await?;
+    serve_original(media, asset, key, label, request).await
 }
 
 async fn scoped_original(
@@ -92,6 +106,16 @@ async fn scoped_original(
     .fetch_optional(&auth.pool)
     .await?
     .ok_or(Failure::Missing)?;
+    serve_original(media, original, key, label, request).await
+}
+
+async fn serve_original(
+    media: Option<PrivateMedia>,
+    original: Uuid,
+    key: String,
+    label: String,
+    request: Request,
+) -> Result<Response, Failure> {
     if key != original_key(original) {
         return Err(Failure::Missing);
     }

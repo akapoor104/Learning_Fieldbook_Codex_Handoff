@@ -490,6 +490,101 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/JournalMissing' }
         '409': { description: A different original is saved for this link }
+  /shares/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+    put:
+      summary: Approve exact material for a named guest
+      description: >
+        An ordinary guardian session chooses a guest account from the same household and
+        the current revision of a family entry. Only directly uploaded originals currently
+        attached to that entry are eligible. Scribed text requires learner confirmation.
+        Use a fresh UUID for a new share. Retrying the same pending approval returns its
+        original invitation. The token is valid for 24 hours and requires the named guest's
+        independent sign-in. Give the ID and token to that guest privately.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelativeShareSelection' }
+      responses:
+        '200': { $ref: '#/components/responses/RelativeInvitation' }
+        '201': { $ref: '#/components/responses/RelativeInvitation' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: The revision is stale or the share ID has already been used }
+        '422': { description: Invalid selection or missing text confirmation }
+    get:
+      summary: Read the accepted share as its named guest
+      description: >
+        Returns only the approved revision and original attachments that are still linked
+        under the approved selection. Source activity date and attribution accompany file-only shares.
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Approved material
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelativeShare' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    delete:
+      summary: Revoke a pending or accepted share as an ordinary guardian
+      description: Revocation is durable. Retrying succeeds with the same result.
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Share revoked }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /shares/{id}/accept:
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+    post:
+      summary: Redeem the invitation once as the named guest
+      description: A successful redemption grants access for 30 days. Use the share ID to reopen it.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '204': { description: Share accepted }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /shares/{id}/media/{asset}:
+    servers: [{ url: / }]
+    parameters:
+      - $ref: '#/components/parameters/ShareId'
+      - $ref: '#/components/parameters/PhotoAssetId'
+    get:
+      summary: Download the specifically approved original as the named guest
+      description: Supports a single byte range. The share must remain active for each request.
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/OriginalDownload' }
+        '206': { $ref: '#/components/responses/OriginalDownload' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '416': { description: Range not satisfiable }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+    head:
+      summary: Read authorized download headers
+      security: [{ session: [] }]
+      responses:
+        '200': { description: Download headers without a body }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
   /media/{id}:
     servers: [{ url: / }]
     parameters:
@@ -712,6 +807,11 @@ components:
       in: header
       name: X-CSRF-Token
   parameters:
+    ShareId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     AttachmentMomentId:
       in: path
       name: moment
@@ -743,6 +843,42 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    RelativeShareSelection:
+      type: object
+      additionalProperties: false
+      required: [guest_id, moment_id, revision, include_text, original_asset_ids]
+      properties:
+        guest_id: { type: string, format: uuid }
+        moment_id: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        include_text: { type: boolean }
+        original_asset_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    RelativeShare:
+      type: object
+      required: [id, moment_id, revision, voice, note, activity_date, learner_name, recorder_name, originals]
+      properties:
+        id: { type: string, format: uuid }
+        moment_id: { type: string, format: uuid }
+        revision: { type: integer }
+        voice: { type: string, enum: [student, scribed, guardian] }
+        note: { type: [string, 'null'] }
+        activity_date: { type: [string, 'null'], format: date }
+        learner_name: { type: string }
+        recorder_name: { type: string }
+        originals:
+          type: array
+          items:
+            type: object
+            required: [id, representation, label, uploader_name]
+            properties:
+              id: { type: string, format: uuid }
+              representation: { const: original }
+              label: { type: string }
+              uploader_name: { type: string }
     FamilyFile:
       type: object
       required: [id, label, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name, source_url, copy_asset_id]
@@ -886,6 +1022,19 @@ components:
               ceremony: { type: string }
               credential: { type: object, description: Browser WebAuthn credential JSON }
   responses:
+    RelativeInvitation:
+      description: Pending invitation for the named guest
+      headers:
+        Location:
+          schema: { type: string }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [id, token]
+            properties:
+              id: { type: string, format: uuid }
+              token: { type: string }
     OriginalDownload:
       description: Original bytes as a private attachment
       headers:

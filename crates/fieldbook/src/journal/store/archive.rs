@@ -82,7 +82,7 @@ pub(in crate::journal) async fn set_link(
         sqlx::query(
             "INSERT INTO moment_assets (moment_id, household_id, asset_id, position, matched_by)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (moment_id, asset_id) DO UPDATE SET withdrawn_at = NULL",
+             ON CONFLICT (moment_id, asset_id) DO UPDATE SET withdrawn_at = NULL, link_generation = gen_random_uuid()",
         )
         .bind(moment)
         .bind(actor.household_id)

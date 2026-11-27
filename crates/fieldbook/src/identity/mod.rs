@@ -19,7 +19,10 @@ use webauthn_rs::prelude::{Webauthn, WebauthnBuilder};
 
 pub(crate) mod diary;
 pub(crate) mod routes;
+mod shares;
 pub(crate) mod store;
+
+pub(crate) use shares::{guest_actor as share_viewer, original as share_original};
 
 pub use store::{issue_enrollment, provision_actor, revoke_credentials};
 
@@ -95,6 +98,7 @@ pub fn router_with_media(
         .route("/api/v1/session/keep-alive", post(routes::keep_alive))
         .route("/api/v1/households/{id}", get(routes::household))
         .merge(crate::journal::router())
+        .merge(shares::router())
         .merge(crate::storage::uploads::router(media))
         .with_state(state.clone())
         .merge(crate::web::router(web_root))

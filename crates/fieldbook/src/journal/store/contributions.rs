@@ -42,6 +42,14 @@ pub(in crate::journal) async fn set_confirmation(
         .await?;
     } else {
         withdraw_confirmation(&mut tx, id, revision).await?;
+        sqlx::query(
+            "UPDATE relative_shares SET revoked_at = clock_timestamp()
+             WHERE moment_id = $1 AND revision = $2 AND include_text AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .bind(revision)
+        .execute(&mut *tx)
+        .await?;
     }
     let current = snapshot(&mut *tx, actor.household_id, id, Some(revision)).await?;
     tx.commit().await?;
