@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: fieldbook
+      POSTGRES_USER: fieldbook
+      POSTGRES_PASSWORD: "${FIELDBOOK_DB_PASSWORD:?set FIELDBOOK_DB_PASSWORD}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "fieldbook", "-d", "fieldbook"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://fieldbook:${FIELDBOOK_DB_PASSWORD:?set FIELDBOOK_DB_PASSWORD}@db:5432/fieldbook"
+      FIELD_STORAGE: filesystem
+      FIELD_MEDIA_ROOT: /var/data/fieldbook
+      FIELD_OUTSIDE_AI: "off"
+    ports:
+      - "127.0.0.1:${FIELDBOOK_HTTP_PORT:-8080}:8080"
+    volumes:
+      - media-data:/var/data/fieldbook
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "3", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 4s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  media-data:
