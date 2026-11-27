@@ -1,6 +1,6 @@
 {
   "ticket": "B3",
-  "revision": "0168e74896a4cc30b47a5c5aef72187f9f771bd0",
+  "revision": "034f196c3f6973877f4cdfcebc89808f4aadf158",
   "implementer": "Codex",
   "reviewer": "Independent Codex reviewer",
   "checks": {
@@ -14,12 +14,13 @@
       "exit_code": 0
     },
     "B3.2": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Run npm --prefix web run test:photos against the Compose release with a fresh disposable PostgreSQL 16 database and private filesystem storage.",
+      "observed": "Separate guardian and learner sessions used the keyboard to upload, resume at 1151 bytes, match, unmatch and relink. One original retained its uploader and digest, duplicate requests made one link, and guardian attachment to a synthetic diary row returned 404.",
+      "artifact": "B3.2.md",
+      "sha256": "d2ea9625c1458a94a43e0d3ec4bb466c1c3b9516e67c7369d9c9205ecf019515",
+      "exit_code": 0
     },
     "B3.3": {
       "state": "not-run",
@@ -38,12 +39,13 @@
       "sha256": ""
     },
     "photo-match": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Run python3 tools/run_cases.py --case photo-match --timeout 60 -- node web/tests/photos.mjs --case against the Compose release.",
+      "observed": "One new original, one link before unmatch, zero links afterward, guardian parent-one as uploader and the original SHA-256 preserved.",
+      "artifact": "B3.2.md",
+      "sha256": "d2ea9625c1458a94a43e0d3ec4bb466c1c3b9516e67c7369d9c9205ecf019515",
+      "exit_code": 0
     }
   }
 }
