@@ -1,6 +1,6 @@
 {
   "ticket": "B3",
-  "revision": "034f196c3f6973877f4cdfcebc89808f4aadf158",
+  "revision": "1c0da16a8330ced77d26cb30e331b99e9b749b9d",
   "implementer": "Codex",
   "reviewer": "Independent Codex reviewer",
   "checks": {
@@ -23,29 +23,31 @@
       "exit_code": 0
     },
     "B3.3": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "artifact": "B3.3.md",
+      "sha256": "0c9ab9d19fbdf0502ec5a1a5ccdb219e4fa2fe64fe8f042f834e56d999835553",
+      "exit_code": 0,
+      "procedure": "Run npm --prefix web run test:archive against the disposable Compose release.",
+      "observed": "Four ordered private originals downloaded with external requests blocked. The fifth stayed link-only until its supplied recording resumed at byte 4195170 and verified. One backing original retained its hash and both withdrawal paths were reversible. Guest and outsider requests for private originals returned scoped 404s; the selected-photo guest grant belongs to B5."
     },
     "T3": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "artifact": "B3.3.md",
+      "sha256": "0c9ab9d19fbdf0502ec5a1a5ccdb219e4fa2fe64fe8f042f834e56d999835553",
+      "exit_code": 0,
+      "procedure": "Run npm --prefix web run test:photos, the photo-match adapter, and npm --prefix web run test:archive against the disposable Compose release.",
+      "observed": "Words-first and photo-first matching kept an independent original and its uploader. Four local attachments downloaded with external requests blocked. The fifth retained its position and link identity and gained one verified copy after a halfway interruption and resume."
     },
     "photo-match": {
       "state": "passed",
       "kind": "command",
+      "artifact": "B3.3.md",
+      "sha256": "0c9ab9d19fbdf0502ec5a1a5ccdb219e4fa2fe64fe8f042f834e56d999835553",
+      "exit_code": 0,
       "procedure": "Run python3 tools/run_cases.py --case photo-match --timeout 60 -- node web/tests/photos.mjs --case against the Compose release.",
-      "observed": "One new original, one link before unmatch, zero links afterward, guardian parent-one as uploader and the original SHA-256 preserved.",
-      "artifact": "B3.2.md",
-      "sha256": "d2ea9625c1458a94a43e0d3ec4bb466c1c3b9516e67c7369d9c9205ecf019515",
-      "exit_code": 0
+      "observed": "The final B3.3 release reproduced one new original, one active match before unmatch, zero afterward, the guardian uploader and the original SHA-256."
     }
   }
 }
