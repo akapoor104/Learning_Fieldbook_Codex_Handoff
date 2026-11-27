@@ -1,11 +1,15 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
-  import { api, authenticate, enroll, RequestError, supportsPasskeys, type Session } from './identity';
+  import { flushSync, onMount, tick } from 'svelte';
+  import { api, authenticate, authenticateForDiary, enroll, RequestError, supportsPasskeys,
+    type DiaryAccessKind, type Session } from './identity';
 
   import Diary from './Diary.svelte';
   import Journal from './Journal.svelte';
+  import ParentAccess from './ParentAccess.svelte';
 
-  type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos' | 'diary';
+  type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos' | 'diary'
+    | 'parent-access' | 'parent-diary' | 'parent-active';
+  const parentAccessPath = '/diary/parent-access/';
 
   let session = $state<Session | null>(null);
   let checking = $state(true);
@@ -20,6 +24,9 @@
   let invitation = $state('');
   let view = $state<View>('home');
   let entryDiary = false;
+  let entryParentAccess = false;
+  let requestedDiaryToken: string | null = null;
+  let parentAccessEnded = $state(false);
   let entryMoment = $state<string | null>(null);
   let heading = $state<HTMLHeadingElement>();
   let nameField = $state<HTMLInputElement>();
@@ -31,6 +38,7 @@
   let warningTimer: ReturnType<typeof setTimeout>;
   let expirationTimer: ReturnType<typeof setTimeout>;
   let elevationTimer: ReturnType<typeof setTimeout>;
+  let diaryTimer: ReturnType<typeof setTimeout>;
 
   function hidePrivate() {
     covered = true;
@@ -43,6 +51,7 @@
     clearTimeout(warningTimer);
     clearTimeout(expirationTimer);
     clearTimeout(elevationTimer);
+    clearTimeout(diaryTimer);
     privateContent?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')
       .forEach((field) => field.value = '');
     session = null;
@@ -53,21 +62,51 @@
     warning = false;
     view = 'home';
     entryDiary = false;
+    entryParentAccess = false;
+    requestedDiaryToken = null;
+    parentAccessEnded = false;
     entryMoment = null;
   }
 
-  function applySession(next: Session) {
+  function applySession(next: Session, requestedAt = performance.now()) {
     if (session && session.actor.id !== next.actor.id) forget();
     clearTimeout(warningTimer);
     clearTimeout(expirationTimer);
     clearTimeout(elevationTimer);
+    clearTimeout(diaryTimer);
     session = next;
-    if (entryDiary && next.actor.role === 'learner') view = 'diary';
-    else if (entryMoment && next.actor.role !== 'guest') view = 'journal';
+    let closingDiary = false;
+    if (next.diary_learner_id) {
+      view = window.location.pathname === parentAccessPath && requestedDiaryToken === next.csrf_token
+        ? 'parent-diary' : 'parent-active';
+      parentAccessEnded = false;
+      entryMoment = null;
+
+      // The server rounds up to a whole second. Budget transit time before revealing the view.
+      const remaining = (next.diary_seconds - 1) * 1000 - (performance.now() - requestedAt);
+      closingDiary = remaining <= 0;
+      diaryTimer = setTimeout(() => recheck(true), closingDiary ? 250 : remaining);
+    } else if (view === 'parent-diary' || view === 'parent-active') {
+      view = 'home';
+      requestedDiaryToken = null;
+      parentAccessEnded = true;
+    } else if (entryDiary && next.actor.role === 'learner') {
+      view = 'diary';
+    } else if (entryParentAccess && next.actor.role === 'guardian') {
+      view = 'parent-access';
+    } else if (entryMoment && next.actor.role !== 'guest') {
+      view = 'journal';
+    }
     entryDiary = false;
+    entryParentAccess = false;
     sessionCheckError = false;
-    covered = checkAfterAction || document.visibilityState === 'hidden';
-    if (privateContent) privateContent.hidden = covered;
+    covered = closingDiary || checkAfterAction || document.visibilityState === 'hidden';
+    if (covered) hidePrivate();
+    else if (privateContent?.hidden) {
+      void tick().then(() => {
+        if (!covered && privateContent && session?.csrf_token === next.csrf_token) privateContent.hidden = false;
+      });
+    }
     warning = next.idle_seconds <= 60;
     warningTimer = setTimeout(() => warning = true, Math.max(0, next.idle_seconds - 60) * 1000);
     expirationTimer = setTimeout(() => {
@@ -90,12 +129,13 @@
 
   async function verify(focus = false) {
     const started = ++revision;
+    const requestedAt = performance.now();
     const hadSession = session !== null;
     hidePrivate();
     try {
       const current = await api<Session>('/session');
       if (started !== revision || document.visibilityState === 'hidden') return;
-      applySession(current);
+      applySession(current, requestedAt);
     } catch (failure) {
       if (started !== revision) return;
       if (failure instanceof RequestError && failure.status === 401) {
@@ -119,16 +159,26 @@
     }
   }
 
-  onMount(() => {
+  function readEntryLocation() {
     entryDiary = window.location.pathname === '/diary/';
+    entryParentAccess = window.location.pathname === parentAccessPath;
     entryMoment = new URLSearchParams(window.location.search).get('moment');
-    // Remove account state before the browser can save a page snapshot.
+  }
+
+  onMount(() => {
+    readEntryLocation();
+    // Discard diary DOM and account state before Chromium can snapshot the page.
     function pageHide() {
-      forget();
-      checking = true;
+      flushSync(() => {
+        forget();
+        checking = true;
+      });
     }
     function pageShow(event: PageTransitionEvent) {
-      if (event.persisted) void verify(true);
+      if (event.persisted) {
+        readEntryLocation();
+        void verify(true);
+      }
     }
     function visibilityChanged() {
       if (document.visibilityState === 'hidden') hidePrivate();
@@ -154,12 +204,12 @@
     };
   });
 
-  function recheck() {
+  function recheck(focus = false) {
     if (busy) {
       hidePrivate();
       checkAfterAction = true;
     } else {
-      void verify();
+      void verify(focus);
     }
   }
 
@@ -193,6 +243,7 @@
       } else {
         const next = await authenticate(username.trim().toLowerCase());
         if (started !== revision) return;
+        if (['/diary/', parentAccessPath].includes(window.location.pathname)) readEntryLocation();
         applySession(next);
         username = '';
         await tick();
@@ -239,12 +290,13 @@
     busy = true;
     error = '';
     const started = ++revision;
+    const requestedAt = performance.now();
     try {
       const next = reauthenticate
         ? await authenticate('', csrf)
         : await api<Session>('/session/keep-alive', 'POST', undefined, csrf);
       if (started !== revision) return;
-      applySession(next);
+      applySession(next, requestedAt);
       if (reauthenticate) notify?.postMessage('session-changed');
     } catch (failure) {
       if (started !== revision) return;
@@ -259,8 +311,40 @@
     }
   }
 
+  async function openParentDiary(learner: string, kind: DiaryAccessKind) {
+    if (!session || busy || covered || view !== 'parent-access') return;
+    if (!supportsPasskeys()) {
+      error = 'Open Fieldbook in a browser that supports passkeys.';
+      return;
+    }
+    const csrf = session.csrf_token;
+    busy = true;
+    error = '';
+    const started = ++revision;
+    try {
+      const { session: next, requestedAt } = await authenticateForDiary(learner, kind, csrf);
+      if (started !== revision) return;
+      requestedDiaryToken = next.csrf_token;
+      applySession(next, requestedAt);
+      notify?.postMessage('session-changed');
+    } catch (failure) {
+      if (started !== revision) return;
+      if (failure instanceof RequestError && [401, 403].includes(failure.status)) await verify(true);
+      error = 'Parent access could not open. Try again with your passkey.';
+    } finally {
+      finishAction();
+    }
+  }
+
+  function openActiveDiary() {
+    if (!session?.diary_learner_id || covered || busy) return;
+    requestedDiaryToken = session.csrf_token;
+    recheck();
+  }
+
   async function open(next: View) {
-    if (!session || covered) return;
+    if (!session || covered || session.diary_learner_id) return;
+    parentAccessEnded = false;
     view = next;
     await tick();
     if (next === 'home' || next === 'projects') heading?.focus();
@@ -285,6 +369,8 @@
         <p role="alert">Fieldbook could not check your session.</p>
         <button type="button" onclick={() => verify(true)}>Try again</button>
       </main>
+    {:else if covered && session.diary_learner_id}
+      <main><p role="status">Checking diary access…</p></main>
     {/if}
     <div class="notebook" bind:this={privateContent} hidden={covered}>
       <header class="account">
@@ -294,7 +380,7 @@
           <button type="button" class="quiet" onclick={() => leave(false)} disabled={busy}>Sign out</button>
         </div>
       </header>
-      {#if session.actor.role !== 'guest'}
+      {#if session.actor.role !== 'guest' && !session.diary_learner_id}
         <nav aria-label="Notebook">
           <button type="button" class="quiet" aria-current={view === 'home' ? 'page' : undefined} onclick={() => open('home')}>Home</button>
           <button type="button" class="quiet" aria-current={view === 'projects' ? 'page' : undefined} onclick={() => open('projects')}>Projects</button>
@@ -302,17 +388,31 @@
       {/if}
       <main>
         {#if error}<p class="error" role="alert">{error}</p>{/if}
-        {#if warning}
+        {#if warning && !session.diary_learner_id}
           <aside class="notice">
             <p role="status">Your session will end soon.</p>
             <button type="button" class="quiet" disabled={busy} onclick={() => refreshSession(false)}>Stay signed in</button>
           </aside>
         {/if}
-        {#if view === 'projects'}
+        {#if session.diary_learner_id}
+          {#if !covered && view === 'parent-diary'}
+            {#key session.csrf_token}
+              <Diary {session} onauthlost={() => recheck(true)} />
+            {/key}
+          {:else if view === 'parent-active'}
+            <h1 bind:this={heading} tabindex="-1">Parent access is active</h1>
+            {#if window.location.pathname === parentAccessPath}
+              <button type="button" onclick={openActiveDiary}>Open the learner’s diary</button>
+            {:else}
+              <a href={parentAccessPath}>Go to Parent access</a>
+            {/if}
+          {/if}
+        {:else if view === 'projects'}
           <h1 bind:this={heading} tabindex="-1">Projects</h1>
           <p>No projects yet.</p>
         {:else if view === 'home'}
           <h1 bind:this={heading} tabindex="-1">Home</h1>
+          {#if parentAccessEnded}<p role="status">Parent access ended.</p>{/if}
           {#if session.actor.role === 'guest'}
             <p>No shared items yet.</p>
           {:else}
@@ -323,6 +423,8 @@
               <button type="button" class="quiet" onclick={() => open('photos')}>Family photos to match</button>
               {#if session.actor.role === 'learner'}
                 <button type="button" class="quiet" onclick={() => open('diary')}>My diary</button>
+              {:else}
+                <a class="parent-link" href={parentAccessPath}>Parent access</a>
               {/if}
             </div>
             {#if session.actor.role === 'guardian'}
@@ -332,12 +434,14 @@
               </div>
             {/if}
           {/if}
-        {:else if view === 'diary' && session.actor.role === 'learner'}
-          {#key session.actor.id}
-            <Diary {session} onauthlost={() => verify(true)} />
+        {:else if !covered && view === 'diary' && session.actor.role === 'learner'}
+          {#key session.csrf_token}
+            <Diary {session} onauthlost={() => recheck(true)} />
           {/key}
+        {:else if !covered && view === 'parent-access' && session.actor.role === 'guardian'}
+          <ParentAccess {session} {busy} onopen={openParentDiary} onauthlost={() => recheck(true)} />
         {/if}
-        {#if session.actor.role !== 'guest'}
+        {#if session.actor.role !== 'guest' && !session.diary_learner_id}
           {#key session.actor.id}
             <Journal {session} panel={view === 'capture' || view === 'journal' || view === 'photos' ? view : null}
               {entryMoment} onvisited={() => entryMoment = null}
@@ -389,6 +493,7 @@
   :global(.shell button:disabled) { cursor: wait; }
   :global(.shell button.quiet) { color: #20492d; background: #f4f3eb; }
   :global(.shell button.quiet:hover), button[aria-current] { background: #dfe8d9; }
+  .parent-link { display: inline-flex; align-items: center; min-height: 44px; color: #20492d; padding-inline: .5rem; }
   form > button, .entry-option, .reauth { margin-top: 1rem; }
   .hint { color: #483f34; font-size: 1rem; }
   .account { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }

@@ -8,6 +8,13 @@ import { chromiumOptions, database, origin, provision, run, virtualAuthenticator
 const fixture = JSON.parse(readFileSync(new URL('../../fixtures/household.json', import.meta.url), 'utf8'));
 const entry = fixture.moments.find(({ visibility }) => visibility === 'diary');
 const parentAccess = process.argv.includes('--parent-access');
+const caseMode = process.argv.includes('--case');
+const diaryUi = caseMode || process.argv.includes('--ui');
+if (caseMode) {
+  const packet = JSON.parse(readFileSync(0, 'utf8'));
+  assert.equal(packet.case, 'diary-scope');
+  assert.equal(packet.input.fixture, 'household');
+}
 const prefix = `diary-${randomUUID().slice(0, 8)}-`;
 const { households, actors } = provision(prefix);
 const learnerId = actors[entry.learner];
@@ -18,10 +25,22 @@ const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const psql = (query) => ['--dbname', database, '-X', '-v', 'ON_ERROR_STOP=1', '-Atqc', query];
 const sql = (query) => execFileSync('psql', psql(query), { encoding: 'utf8' }).trim();
 const button = (page, name) => page.getByRole('button', { name, exact: true });
-const browser = await chromium.launch(chromiumOptions);
+const browser = await chromium.launch({
+  ...chromiumOptions,
+  ...(diaryUi ? { ignoreDefaultArgs: ['--disable-back-forward-cache'] } : {}),
+});
 
 async function signIn(alias) {
-  const context = await browser.newContext();
+  const context = await browser.newContext(diaryUi ? { viewport: { width: 360, height: 800 } } : {});
+  if (diaryUi) await context.addInitScript((marker) => {
+    addEventListener('pageshow', (event) => {
+      window.diaryRestore = {
+        persisted: event.persisted,
+        exposed: [...document.querySelectorAll('article p')].some((node) =>
+          node.textContent === marker && node.getClientRects().length > 0),
+      };
+    });
+  }, entry.title);
   const page = await context.newPage();
   await page.goto(origin);
   await virtualAuthenticator(page);
@@ -246,6 +265,165 @@ async function parentJourney(learner, otherPages, diaryPath, diaryMedia, family)
   return history;
 }
 
+const heading = (page, name) => page.getByRole('heading', { name, exact: true });
+const marker = (page) => page.getByText(entry.title, { exact: true });
+const parentPath = '/diary/parent-access/';
+
+async function openParentUi(page, reason) {
+  await page.getByRole('link', { name: 'Parent access', exact: true }).press('Enter');
+  await heading(page, 'Parent access').waitFor();
+  assert.match(page.url(), /\/diary\/parent-access\/$/);
+  await page.getByText('The learner can see your name and when you opened their diary.', { exact: false }).waitFor();
+  assert.equal(await marker(page).count(), 0);
+  await page.getByLabel('Learner', { exact: true }).selectOption(learnerId);
+  await page.getByLabel('Reason', { exact: true }).selectOption(reason);
+  await button(page, 'Open with your passkey').press('Enter');
+  await heading(page, 'Learner’s diary').waitFor();
+  await marker(page).waitFor();
+  assert.equal(await button(page, 'Family journal').count(), 0);
+  assert.equal(await button(page, 'Write a sentence').count(), 0);
+  assert.equal(await page.locator('details').count(), 0);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+}
+
+async function afterBack(page, nextHeading) {
+  await page.goBack();
+  await heading(page, nextHeading).waitFor();
+  assert.equal(new URL(page.url()).pathname, parentPath);
+  assert.equal(await marker(page).count(), 0);
+  const restored = await page.evaluate(() => window.diaryRestore);
+  assert(restored);
+  assert.equal(restored.exposed, false);
+  return restored.persisted;
+}
+
+async function diaryJourney(learner, otherPages, diaryPath, diaryMedia, family) {
+  const one = otherPages.find(({ id }) => id === 'parent-one').page;
+  const two = otherPages.find(({ id }) => id === 'parent-two').page;
+  let ordinaryHits = 0;
+  for (const page of [one, two]) {
+    await heading(page, 'Home').waitFor();
+    ordinaryHits += await marker(page).count();
+    await button(page, 'Family journal').press('Enter');
+    await page.getByText(family.note, { exact: true }).waitFor();
+    ordinaryHits += await marker(page).count();
+    await button(page, 'Home').press('Enter');
+  }
+  // The release supplies the scoped family selector used by search and counts.
+  ordinaryHits += Number(sql(`SELECT count(*) FROM family_moments m
+    JOIN moment_revisions r ON r.moment_id = m.id AND r.revision = m.revision
+    WHERE m.household_id = '${households.A}' AND r.note LIKE '%${entry.title}%'`));
+  assert.equal(ordinaryHits, 0);
+
+  const ordinaryTab = await one.context().newPage();
+  await ordinaryTab.goto(origin);
+  await heading(ordinaryTab, 'Home').waitFor();
+  const chooserTab = await one.context().newPage();
+  await chooserTab.goto(origin + parentPath);
+  await heading(chooserTab, 'Parent access').waitFor();
+  await openParentUi(one, 'view');
+  for (const tab of [ordinaryTab, chooserTab]) {
+    await heading(tab, 'Parent access is active').waitFor();
+    assert.equal(await marker(tab).count(), 0);
+  }
+  const [copied] = await Promise.all([
+    one.waitForEvent('download'), one.getByRole('link', { name: 'Download attachment 1' }).press('Enter'),
+  ]);
+  assert.equal(copied.suggestedFilename(), filename);
+  assert.equal(digest(readFileSync(await copied.path())), digest(photo));
+  await get(one, diaryMedia, 200, 'HEAD');
+
+  await one.goto(origin);
+  await heading(one, 'Parent access is active').waitFor();
+  assert.equal(await marker(one).count(), 0);
+  await button(ordinaryTab, 'Sign out').press('Enter');
+  await heading(ordinaryTab, 'Sign in').waitFor();
+  await heading(one, 'Sign in').waitFor();
+  const signedOutRestored = await afterBack(one, 'Sign in');
+  await get(one, diaryPath, 401);
+  await get(one, diaryMedia, 401, 'HEAD');
+  await one.getByLabel('Account name').fill(prefix + 'parent-one');
+  await one.getByLabel('Account name').press('Enter');
+  await heading(one, 'Parent access').waitFor();
+  assert.equal(await marker(one).count(), 0);
+  await get(one, diaryPath, 404);
+
+  // Shorten only this fixture’s grant so the real expiry path runs in the browser.
+  sql(`CREATE FUNCTION shorten_ui_diary_access() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.guardian_id = '${actors['parent-two']}' THEN
+          NEW.expires_at := NEW.recorded_at + interval '12 seconds';
+        END IF;
+        RETURN NEW;
+      END; $$;
+      CREATE TRIGGER shorten_ui_diary_access BEFORE INSERT ON diary_access_events
+        FOR EACH ROW EXECUTE FUNCTION shorten_ui_diary_access();`);
+  try {
+    await openParentUi(two, 'recovery');
+  } finally {
+    sql('DROP TRIGGER shorten_ui_diary_access ON diary_access_events; DROP FUNCTION shorten_ui_diary_access();');
+  }
+  const expiryTab = await two.context().newPage();
+  await expiryTab.goto(origin + parentPath);
+  await heading(expiryTab, 'Parent access is active').waitFor();
+  assert.equal(await marker(expiryTab).count(), 0);
+  await button(expiryTab, 'Open the learner’s diary').press('Enter');
+  await marker(expiryTab).waitFor();
+  await expiryTab.goto(origin);
+  const range = await get(two, diaryMedia, 206, 'GET', { Range: 'bytes=0-15' });
+  assert.deepEqual(await range.body(), photo.subarray(0, 16));
+  await heading(two, 'Home').waitFor({ timeout: 18000 });
+  await two.getByText('Parent access ended.', { exact: true }).waitFor();
+  assert.equal(await marker(two).count(), 0);
+  const expiredRead = await get(two, diaryPath, 404);
+  await get(two, diaryMedia, 404, 'HEAD');
+  await get(two, diaryMedia, 404, 'GET', { Range: 'bytes=0-15' });
+  await heading(expiryTab, 'Home').waitFor({ timeout: 18000 });
+  const expiredRestored = await afterBack(expiryTab, 'Parent access');
+  await button(two, 'Family journal').press('Enter');
+  await two.getByText(family.note, { exact: true }).waitFor();
+  assert.equal(await marker(two).count(), 0);
+
+  await learner.goto(origin + '/diary/');
+  await heading(learner, 'My diary').waitFor();
+  await learner.getByText(
+    'This diary is yours. If Mom or Dad needs to open it, you can see who opened it and when.',
+    { exact: true },
+  ).waitFor();
+  await marker(learner).waitFor();
+  const learnerCanRead = await marker(learner).isVisible();
+  await learner.getByText('Access history', { exact: true }).press('Enter');
+  const list = learner.locator('.access-history li');
+  await list.nth(1).waitFor();
+  assert.equal(await list.count(), 2);
+  const history = await (await get(learner, historyRoute, 200)).json();
+  for (const [index, event] of history.entries()) {
+    const row = list.nth(index);
+    await row.getByText(event.guardian_name, { exact: true }).waitFor();
+    await row.getByText(event.kind === 'recovery' ? 'Recovery' : 'Viewed diary', { exact: true }).waitFor();
+    const time = row.locator('time');
+    assert.equal(await time.getAttribute('datetime'), event.recorded_at);
+    assert.match(await time.innerText(), /\d{1,2}:\d{2}:\d{2} [AP]M/);
+  }
+  const names = await list.locator('strong').allTextContents();
+  const aliases = new Map(Object.keys(actors).map((alias) => [`Fixture ${alias}`, alias]));
+  const guardianEvents = names.reverse().map((name) => aliases.get(name));
+
+  await button(learner, 'Home').press('Enter');
+  await button(learner, 'Write a sentence').press('Enter');
+  await learner.getByLabel('What happened?').fill('I can still write in the family journal.');
+  await button(learner, 'Save moment').press('Enter');
+  await learner.getByText('I can still write in the family journal.', { exact: true }).waitFor();
+
+  return {
+    history, signedOutRestored, expiredRestored,
+    projection: {
+      ordinary_hits: ordinaryHits, guardian_events: guardianEvents,
+      expired_can_read: expiredRead.ok(), learner_can_read: learnerCanRead,
+    },
+  };
+}
+
 try {
   const learner = await signIn(entry.learner);
   const family = await write(learner, 'POST', '/moments', {
@@ -365,8 +543,10 @@ try {
     AND label LIKE '%${entry.title}%'`), '0');
   assert.equal(sql(`SELECT encode(sha256, 'hex') FROM assets WHERE id = '${file.id}'`), digest(photo));
   const accessEvents = parentAccess ? await parentJourney(learner, otherPages, diaryPath, diaryMedia, family) : [];
-  console.log(JSON.stringify({
-    accessEvents,
+  const ui = diaryUi ? await diaryJourney(learner, otherPages, diaryPath, diaryMedia, family) : null;
+  if (caseMode) console.log(JSON.stringify(ui.projection));
+  else console.log(JSON.stringify({
+    accessEvents, ui, browser: browser.version(),
     fixture: entry.id, diaryId, fileId: file.id, familyId: family.id, sourceId: source.id,
     sha256: digest(photo), ordinaryActorsChecked: otherPages.map(({ id }) => id),
   }));

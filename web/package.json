@@ -12,7 +12,8 @@
     "test:photos": "node tests/photos.mjs",
     "test:archive": "node tests/archive.mjs",
     "test:diary": "node tests/diary.mjs",
-    "test:parent-access": "node tests/diary.mjs --parent-access"
+    "test:parent-access": "node tests/diary.mjs --parent-access",
+    "test:diary-ui": "node tests/diary.mjs --ui"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.2",

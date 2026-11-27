@@ -57,13 +57,25 @@ export async function enroll(token: string) {
   return api<void>('/auth/enroll/finish', 'POST', { ceremony, credential: credential.toJSON() });
 }
 
-export async function authenticate(username: string, csrf?: string) {
-  const route = csrf ? '/auth/step-up' : '/auth/sign-in';
+export type DiaryAccessKind = 'view' | 'recovery';
+
+export function authenticate(username: string, csrf?: string) {
+  return assertPasskey(csrf ? '/auth/step-up' : '/auth/sign-in', csrf ? undefined : { username }, csrf)
+    .then(({ session }) => session);
+}
+
+export function authenticateForDiary(learnerId: string, kind: DiaryAccessKind, csrf: string) {
+  return assertPasskey('/diary/parent-access', { learner_id: learnerId, kind }, csrf);
+}
+
+async function assertPasskey(route: string, body?: object, csrf?: string) {
   const { ceremony, options } = await api<Ceremony<PublicKeyCredentialRequestOptionsJSON>>(
-    `${route}/start`, 'POST', csrf ? undefined : { username }, csrf,
+    `${route}/start`, 'POST', body, csrf,
   );
   const publicKey = PublicKeyCredential.parseRequestOptionsFromJSON(options.publicKey);
   const credential = await navigator.credentials.get({ publicKey });
   if (!(credential instanceof PublicKeyCredential)) throw new Error('No passkey returned');
-  return api<Session>(`${route}/finish`, 'POST', { ceremony, credential: credential.toJSON() }, csrf);
+  const requestedAt = performance.now();
+  const session = await api<Session>(`${route}/finish`, 'POST', { ceremony, credential: credential.toJSON() }, csrf);
+  return { session, requestedAt };
 }

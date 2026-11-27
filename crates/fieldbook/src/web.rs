@@ -13,6 +13,7 @@ pub(crate) fn router(root: PathBuf) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/diary/", get(index))
+        .route("/diary/parent-access/", get(index))
         .with_state(root.join("index.html"))
         .nest_service(
             "/assets",
