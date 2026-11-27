@@ -1,0 +1,209 @@
+openapi: 3.1.1
+info:
+  title: Learning Fieldbook
+  version: 1.0.0
+  description: >-
+    The signed-in notebook requires the exact configured Host. Unsafe requests
+    require the exact configured Origin. Cookie-authenticated writes also use
+    a session-bound CSRF token. Responses use Cache-Control no-store, private.
+servers:
+  - url: /api/v1
+paths:
+  /auth/enroll/start:
+    post:
+      summary: Begin passkey setup while signed out
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: Single-use operator setup code }
+      responses:
+        '200': { $ref: '#/components/responses/Ceremony' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/enroll/finish:
+    post:
+      summary: Verify registration and consume the setup grant
+      requestBody: { $ref: '#/components/requestBodies/Credential' }
+      responses:
+        '204': { description: Passkey enrolled }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/sign-in/start:
+    post:
+      summary: Begin passkey sign-in after ending the previous session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ceremony' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/sign-in/finish:
+    post:
+      summary: Verify a sign-in assertion and set the session cookie
+      requestBody: { $ref: '#/components/requestBodies/Credential' }
+      responses:
+        '200': { $ref: '#/components/responses/NewSession' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/step-up/start:
+    post:
+      summary: Begin reauthentication for the signed-in guardian
+      security:
+        - session: []
+          csrf: []
+      responses:
+        '200': { $ref: '#/components/responses/Ceremony' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/step-up/finish:
+    post:
+      summary: Verify the guardian assertion and rotate the current session
+      description: The verification lasts five minutes. Diary access is governed by its own record scope and audit requirements.
+      security:
+        - session: []
+          csrf: []
+      requestBody: { $ref: '#/components/requestBodies/Credential' }
+      responses:
+        '200': { $ref: '#/components/responses/NewSession' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /session:
+    get:
+      summary: Get the current actor, CSRF token and remaining session time
+      security:
+        - session: []
+      responses:
+        '200': { $ref: '#/components/responses/CurrentSession' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      summary: End the active session and expire the cookie
+      security:
+        - session: []
+          csrf: []
+      responses:
+        '204': { description: Signed out }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /session/keep-alive:
+    post:
+      summary: Refresh the 15-minute idle window within the original eight-hour lifetime
+      security:
+        - session: []
+          csrf: []
+      responses:
+        '200': { $ref: '#/components/responses/CurrentSession' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /households/{id}:
+    get:
+      summary: Read the signed-in learner or guardian’s household record
+      security:
+        - session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The caller’s household
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, label]
+                properties:
+                  id: { type: string, format: uuid }
+                  label: { type: string }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Household is absent or inaccessible }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: __Host-fieldbook
+    csrf:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  schemas:
+    Session:
+      type: object
+      required: [actor, csrf_token, idle_seconds, elevated_seconds]
+      properties:
+        actor:
+          type: object
+          required: [id, household_id, username, display_name, role]
+          properties:
+            id: { type: string, format: uuid }
+            household_id: { type: string, format: uuid }
+            username: { type: string }
+            display_name: { type: string }
+            role: { type: string, enum: [learner, guardian, guest] }
+        csrf_token: { type: string }
+        idle_seconds: { type: integer, minimum: 1, maximum: 900 }
+        elevated_seconds: { type: integer, minimum: 0, maximum: 300 }
+  requestBodies:
+    Credential:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ceremony, credential]
+            properties:
+              ceremony: { type: string }
+              credential: { type: object, description: Browser WebAuthn credential JSON }
+  responses:
+    Ceremony:
+      description: Two-minute, single-use WebAuthn ceremony
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ceremony, options]
+            properties:
+              ceremony: { type: string }
+              options:
+                type: object
+                required: [publicKey]
+                properties:
+                  publicKey: { type: object, description: Browser WebAuthn public key options JSON }
+    CurrentSession:
+      description: Verified session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Session' }
+    NewSession:
+      description: Verified session with a new Secure, HttpOnly, SameSite Strict cookie
+      headers:
+        Set-Cookie:
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Session' }
+    SignInRequired:
+      description: Missing, expired or invalid credential, ceremony, or session
+    Forbidden:
+      description: Host, origin, CSRF or actor role check failed
+    Conflict:
+      description: Session already active or credential already enrolled

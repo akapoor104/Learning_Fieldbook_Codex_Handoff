@@ -25,6 +25,9 @@ services:
       FIELD_STORAGE: filesystem
       FIELD_MEDIA_ROOT: /var/data/fieldbook
       FIELD_OUTSIDE_AI: "off"
+      FIELD_PUBLIC_ORIGIN: "${FIELD_PUBLIC_ORIGIN:-}"
+      FIELD_RP_ID: "${FIELD_RP_ID:-}"
+      FIELD_SESSION_SECRET: "${FIELD_SESSION_SECRET:-}"
     ports:
       - "127.0.0.1:${FIELDBOOK_HTTP_PORT:-8080}:8080"
     volumes:

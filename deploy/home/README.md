@@ -1,4 +1,4 @@
-# Run the home deployment skeleton
+# Run Fieldbook at home
 
 Run these commands from the repository root with Docker Engine and Compose v2. Use fictional data for this rehearsal. The web port is bound to localhost. PostgreSQL and the private media directory have separate named volumes.
 
@@ -31,7 +31,32 @@ python3 tools/probe_health.py http://127.0.0.1:8080 --expect-not-ready
 docker compose start db
 ```
 
-Use `docker compose down` to stop the stack and retain both volumes. This skeleton serves only status endpoints.
+Use `docker compose down` to stop the stack and retain both volumes.
+
+## Enable the signed-in notebook
+
+For a fictional rehearsal on the host computer, set these variables before starting the service. Use your chosen published port if it differs from 8080. For the private home deployment, use its canonical HTTPS origin and matching hostname as the RP ID. Keep the session secret stable across restarts and preserve the public Host header at the reverse proxy.
+
+```sh
+export FIELD_PUBLIC_ORIGIN=http://localhost:8080
+export FIELD_RP_ID=localhost
+export FIELD_SESSION_SECRET="$(openssl rand -hex 32)"
+docker compose up -d --wait web
+```
+
+Run the account commands from the trusted operator terminal. Each household and actor creation command prints its stable ID. Each person enters their own short-lived setup code under **I have a passkey setup code** and verifies with their own device or security key.
+
+```sh
+household=$(docker compose exec -T web fieldbook account household 'Fictional family')
+learner=$(docker compose exec -T web fieldbook account add "$household" learner 'Fictional learner' learner)
+parent_one=$(docker compose exec -T web fieldbook account add "$household" parent-one 'Fictional guardian one' guardian)
+parent_two=$(docker compose exec -T web fieldbook account add "$household" parent-two 'Fictional guardian two' guardian)
+docker compose exec -T web fieldbook account enroll "$learner"
+docker compose exec -T web fieldbook account enroll "$parent_one"
+docker compose exec -T web fieldbook account enroll "$parent_two"
+```
+
+If the learner loses a credential, use `fieldbook account recover "$learner"` in the same operator context. It ends every session for the account and issues a fresh setup code for the same actor ID. `fieldbook account revoke "$learner"` ends those sessions and disables the credential until a new setup code is issued. Keep setup codes out of logs and receipts. Open the configured origin in the browser after migrating.
 
 ## Run a published release
 

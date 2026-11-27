@@ -2,7 +2,9 @@ use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
+pub mod identity;
 pub mod storage;
+mod web;
 
 pub fn router(pool: Option<PgPool>) -> Router {
     Router::new()

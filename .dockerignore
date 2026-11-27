@@ -10,3 +10,12 @@
 !crates/fieldbook/src/**
 !migrations/
 !migrations/**
+!web/
+!web/index.html
+!web/package.json
+!web/package-lock.json
+!web/vite.config.js
+!web/src/
+!web/src/**
+web/node_modules
+web/dist
