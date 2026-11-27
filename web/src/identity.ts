@@ -12,7 +12,7 @@ export interface Session {
 }
 
 export class RequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly body: unknown) {
     super(`Fieldbook request returned ${status}`);
   }
 }
@@ -28,7 +28,10 @@ export async function api<T>(route: string, method = 'GET', body?: object, csrf?
     cache: 'no-store',
     credentials: 'same-origin',
   });
-  if (!response.ok) throw new RequestError(response.status);
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    throw new RequestError(response.status, body);
+  }
   return response.status === 204 ? undefined as T : response.json();
 }
 

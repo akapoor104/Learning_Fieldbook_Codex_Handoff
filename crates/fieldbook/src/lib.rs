@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 
 pub mod identity;
+mod journal;
 pub mod storage;
 mod web;
 

@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.88"
 
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "tokio"] }
 base64 = "0.22"
 hmac = "0.12"
 rand = "0.8"
@@ -15,9 +15,10 @@ sha2 = "0.10"
 subtle = "2"
 uuid = { version = "1", features = ["serde"] }
 webauthn-rs = { version = "0.5.5", default-features = false, features = ["danger-allow-state-serialisation"] }
-sqlx = { version = "0.8.6", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "uuid", "tls-rustls-ring-native-roots"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "time", "uuid", "tls-rustls-ring-native-roots"] }
 tokio = { version = "1", features = ["macros", "net", "rt", "time", "fs"] }
 
+time = { version = "0.3", features = ["macros", "parsing"] }
 url = "2"
 tower-http = { version = "0.6", features = ["fs"] }
 

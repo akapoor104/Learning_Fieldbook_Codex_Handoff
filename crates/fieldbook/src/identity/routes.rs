@@ -44,7 +44,7 @@ async fn require_signed_out(auth: &Auth, headers: &HeaderMap) -> Result<(), Fail
     Ok(())
 }
 
-async fn active_session<'a>(
+pub(crate) async fn active_session<'a>(
     auth: &Auth,
     headers: &'a HeaderMap,
     require_csrf: bool,

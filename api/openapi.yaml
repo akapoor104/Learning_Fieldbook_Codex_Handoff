@@ -3,7 +3,7 @@ info:
   title: Learning Fieldbook
   version: 1.0.0
   description: >-
-    The signed-in notebook requires the exact configured Host. Unsafe requests
+    The notebook and family journal require the exact configured Host. Unsafe requests
     require the exact configured Origin. Cookie-authenticated writes also use
     a session-bound CSRF token. Responses use Cache-Control no-store, private.
 servers:
@@ -135,6 +135,209 @@ paths:
         '401': { $ref: '#/components/responses/SignInRequired' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { description: Household is absent or inaccessible }
+  /moments/new/:
+    servers: [{ url: / }]
+    post:
+      summary: Save the browser form and redirect to the saved moment
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [csrf_token, submission_key]
+              properties:
+                csrf_token: { type: string }
+                submission_key: { type: string, format: uuid }
+                learner_id: { type: string, format: uuid }
+                note: { type: string }
+                activity_date: { type: string, format: date }
+                asset_ids: { type: string, description: Comma-separated finalized asset UUIDs in display order }
+                scribed: { type: boolean, default: false }
+      responses:
+        '303':
+          description: Saved moment
+          headers:
+            Location:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Validation failed. Submitted note and activity date are retained in the response. }
+  /journal/learners:
+    get:
+      summary: List learners available for family capture
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Learners in the actor's capture scope
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, display_name]
+                  properties:
+                    id: { type: string, format: uuid }
+                    display_name: { type: string }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments:
+    get:
+      summary: Read the family journal in descending activity-date order
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MomentList' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    post:
+      summary: Record one attributed family moment
+      description: A replay with the same actor, submission key and input returns the same moment ID and original wording.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMoment' }
+      responses:
+        '201':
+          description: Saved moment, including successful replays
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Moment' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Invalid text, date, learner selection or asset list }
+  /moments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read a family moment
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JournalMoment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    patch:
+      summary: Revise the authenticated writer’s own words or activity date
+      description: Submit the complete note and activity date for the new revision. Null clears an optional field.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                note: { type: [string, 'null'] }
+                activity_date: { type: [string, 'null'], format: date }
+      responses:
+        '200': { $ref: '#/components/responses/JournalMoment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/StaleMoment' }
+        '422': { description: Invalid text or date }
+  /moments/{id}/revisions:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read preserved family moment revisions, newest first
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MomentList' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/confirmation:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    post:
+      summary: Confirm the current revision of words entered by a guardian
+      security: [{ session: [], csrf: [] }]
+      requestBody: { $ref: '#/components/requestBodies/ExpectedMomentRevision' }
+      responses:
+        '200': { $ref: '#/components/responses/JournalMoment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/StaleMoment' }
+    delete:
+      summary: Withdraw the learner’s confirmation of the current revision
+      security: [{ session: [], csrf: [] }]
+      requestBody: { $ref: '#/components/requestBodies/ExpectedMomentRevision' }
+      responses:
+        '200': { $ref: '#/components/responses/JournalMoment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/StaleMoment' }
+  /moments/{id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: List dated comments visible to the current actor
+      security: [{ session: [] }]
+      responses:
+        '200':
+          description: Family comments and the actor’s own withdrawn comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    post:
+      summary: Add an attributed comment or suggestion
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [submission_key, kind, body]
+              properties:
+                submission_key: { type: string, format: uuid }
+                kind: { type: string, enum: [comment, suggestion] }
+                body: { type: string }
+      responses:
+        '201':
+          description: Saved comment
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Invalid comment body or kind }
+  /moments/{id}/comments/{comment}:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+      - $ref: '#/components/parameters/CommentId'
+    get:
+      summary: Read one visible comment
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+    delete:
+      summary: Withdraw a comment as its author
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Comment withdrawn }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /moments/{id}/comments/{comment}/restore:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      summary: Restore an author’s withdrawn comment under its original ID
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JournalComment' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
 components:
   securitySchemes:
     session:
@@ -145,6 +348,17 @@ components:
       type: apiKey
       in: header
       name: X-CSRF-Token
+  parameters:
+    MomentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommentId:
+      name: comment
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
     Session:
       type: object
@@ -162,7 +376,70 @@ components:
         csrf_token: { type: string }
         idle_seconds: { type: integer, minimum: 1, maximum: 900 }
         elevated_seconds: { type: integer, minimum: 0, maximum: 300 }
+    CreateMoment:
+      type: object
+      required: [submission_key]
+      properties:
+        submission_key: { type: string, format: uuid }
+        learner_id:
+          type: [string, 'null']
+          format: uuid
+          description: Required for guardian capture. A learner can submit under their own account.
+        scribed:
+          type: boolean
+          default: false
+          description: A guardian entered the learner’s spoken words. The learner can confirm that revision.
+        note: { type: [string, 'null'], description: A note or at least one finalized asset is required }
+        activity_date: { type: [string, 'null'], format: date }
+        asset_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, format: uuid }
+          description: Finalized private assets of the recorder, in display order
+    Moment:
+      type: object
+      required: [id, learner_id, learner_name, recorder_id, recorder_name, editor_id, editor_name, voice, visibility, activity_date, created_at, updated_at, revision, note, asset_ids, confirmed]
+      properties:
+        id: { type: string, format: uuid }
+        learner_id: { type: string, format: uuid }
+        learner_name: { type: string }
+        recorder_id: { type: string, format: uuid }
+        recorder_name: { type: string }
+        editor_id: { type: string, format: uuid }
+        editor_name: { type: string }
+        voice: { type: string, enum: [student, scribed, guardian] }
+        visibility: { const: family }
+        activity_date: { type: [string, 'null'], format: date }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+        note: { type: [string, 'null'] }
+        asset_ids:
+          type: array
+          items: { type: string, format: uuid }
+        confirmed: { type: boolean, description: Whether the exact scribed revision has an active learner confirmation }
+    JournalComment:
+      type: object
+      required: [id, author_id, author_name, body, kind, created_at, withdrawn]
+      properties:
+        id: { type: string, format: uuid }
+        author_id: { type: string, format: uuid }
+        author_name: { type: string }
+        body: { type: string }
+        kind: { type: string, enum: [comment, suggestion] }
+        created_at: { type: string, format: date-time }
+        withdrawn: { type: boolean }
   requestBodies:
+    ExpectedMomentRevision:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [expected_revision]
+            properties:
+              expected_revision: { type: integer, minimum: 1 }
     Credential:
       required: true
       content:
@@ -207,3 +484,36 @@ components:
       description: Host, origin, CSRF or actor role check failed
     Conflict:
       description: Session already active or credential already enrolled
+
+    JournalMissing:
+      description: Family record is absent or inaccessible to the caller
+    SubmissionConflict:
+      description: This actor’s submission key has already been used with different input
+    JournalMoment:
+      description: Attributed family moment
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Moment' }
+    MomentList:
+      description: Ordered visible moments or moment revisions
+      content:
+        application/json:
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/Moment' }
+    JournalComment:
+      description: Signed family comment
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/JournalComment' }
+    StaleMoment:
+      description: Expected revision changed. The authorized writer can compare and retry.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, saved, submitted]
+            properties:
+              error: { const: stale_revision }
+              saved: { $ref: '#/components/schemas/Moment' }
+              submitted: { type: object }

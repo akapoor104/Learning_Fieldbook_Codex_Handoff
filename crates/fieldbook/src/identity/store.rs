@@ -291,7 +291,7 @@ pub(super) async fn save_assertion(
 }
 
 #[derive(serde::Serialize, sqlx::FromRow)]
-pub(super) struct Session {
+pub(crate) struct Session {
     #[sqlx(flatten)]
     pub actor: Actor,
     pub idle_seconds: i32,

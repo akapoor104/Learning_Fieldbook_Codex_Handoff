@@ -2,7 +2,9 @@
   import { onMount, tick } from 'svelte';
   import { api, authenticate, enroll, RequestError, supportsPasskeys, type Session } from './identity';
 
-  type View = 'home' | 'projects' | 'capture';
+  import Journal from './Journal.svelte';
+
+  type View = 'home' | 'projects' | 'capture' | 'journal';
 
   let session = $state<Session | null>(null);
   let checking = $state(true);
@@ -12,14 +14,14 @@
   let warning = $state(false);
   let message = $state('');
   let error = $state('');
+  let sessionCheckError = $state(false);
   let username = $state('');
   let invitation = $state('');
-  let draft = $state('');
   let view = $state<View>('home');
+  let entryMoment = $state<string | null>(null);
   let heading = $state<HTMLHeadingElement>();
   let nameField = $state<HTMLInputElement>();
   let inviteField = $state<HTMLInputElement>();
-  let sentenceField = $state<HTMLTextAreaElement>();
   let privateContent = $state<HTMLElement>();
   let revision = 0;
   let checkAfterAction = false;
@@ -39,14 +41,16 @@
     clearTimeout(warningTimer);
     clearTimeout(expirationTimer);
     clearTimeout(elevationTimer);
-    if (sentenceField) sentenceField.value = '';
+    privateContent?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')
+      .forEach((field) => field.value = '');
     session = null;
-    draft = '';
+    sessionCheckError = false;
     username = '';
     invitation = '';
     enrolling = false;
     warning = false;
     view = 'home';
+    entryMoment = null;
   }
 
   function applySession(next: Session) {
@@ -55,6 +59,8 @@
     clearTimeout(expirationTimer);
     clearTimeout(elevationTimer);
     session = next;
+    if (entryMoment && next.actor.role !== 'guest') view = 'journal';
+    sessionCheckError = false;
     covered = checkAfterAction || document.visibilityState === 'hidden';
     if (privateContent) privateContent.hidden = covered;
     warning = next.idle_seconds <= 60;
@@ -87,12 +93,14 @@
       applySession(current);
     } catch (failure) {
       if (started !== revision) return;
-      forget();
       if (failure instanceof RequestError && failure.status === 401) {
+        forget();
         if (hadSession) {
           message = 'Your session ended. Sign in to continue.';
           focus = true;
         }
+      } else if (hadSession) {
+        sessionCheckError = true;
       } else {
         error = 'Fieldbook is unavailable. Reload to try again.';
       }
@@ -107,6 +115,7 @@
   }
 
   onMount(() => {
+    entryMoment = new URLSearchParams(window.location.search).get('moment');
     // Remove account state before the browser can save a page snapshot.
     function pageHide() {
       forget();
@@ -121,7 +130,10 @@
     }
     if ('BroadcastChannel' in window) {
       notify = new BroadcastChannel('fieldbook-session');
-      notify.onmessage = recheck;
+      notify.onmessage = (event) => {
+        if (event.data === 'session-ended') forget();
+        recheck();
+      };
     }
     window.addEventListener('pagehide', pageHide);
     window.addEventListener('pageshow', pageShow);
@@ -205,7 +217,7 @@
     try {
       await api<void>('/session', 'DELETE', undefined, csrf);
       message = switching ? 'Sign in with a different account.' : 'You signed out.';
-      notify?.postMessage('session-changed');
+      notify?.postMessage('session-ended');
       await focusEntry();
     } catch {
       await verify(true);
@@ -245,8 +257,7 @@
     if (!session || covered) return;
     view = next;
     await tick();
-    if (next === 'capture') sentenceField?.focus();
-    else heading?.focus();
+    if (next === 'home' || next === 'projects') heading?.focus();
   }
 
   async function changeEntry(next: boolean) {
@@ -263,6 +274,12 @@
   {#if checking}
     <main><p role="status">Checking your session…</p></main>
   {:else if session}
+    {#if covered && sessionCheckError}
+      <main>
+        <p role="alert">Fieldbook could not check your session.</p>
+        <button type="button" onclick={() => verify(true)}>Try again</button>
+      </main>
+    {/if}
     <div class="notebook" bind:this={privateContent} hidden={covered}>
       <header class="account">
         <p>Signed in as <strong>{session.actor.display_name}</strong></p>
@@ -285,21 +302,19 @@
             <button type="button" class="quiet" disabled={busy} onclick={() => refreshSession(false)}>Stay signed in</button>
           </aside>
         {/if}
-        {#if view === 'capture'}
-          <h1 bind:this={heading} tabindex="-1">Write a sentence</h1>
-          <label for="sentence">What happened?</label>
-          <textarea id="sentence" rows="5" bind:value={draft} bind:this={sentenceField} autocomplete="off" aria-describedby="draft-help"></textarea>
-          <p class="hint" id="draft-help">This draft clears when you sign out or leave Fieldbook.</p>
-        {:else if view === 'projects'}
+        {#if view === 'projects'}
           <h1 bind:this={heading} tabindex="-1">Projects</h1>
           <p>No projects yet.</p>
-        {:else}
+        {:else if view === 'home'}
           <h1 bind:this={heading} tabindex="-1">Home</h1>
           {#if session.actor.role === 'guest'}
             <p>No shared items yet.</p>
           {:else}
             <h2>{session.actor.role === 'learner' ? 'What would you like to remember?' : 'Working together'}</h2>
-            <button type="button" onclick={() => open('capture')}>Write a sentence</button>
+            <div class="actions">
+              <button type="button" onclick={() => open('capture')}>Write a sentence</button>
+              <button type="button" class="quiet" onclick={() => open('journal')}>Family journal</button>
+            </div>
             {#if session.actor.role === 'guardian'}
               <div class="reauth">
                 <button type="button" class="quiet" disabled={busy} onclick={() => refreshSession(true)}>Verify it’s you</button>
@@ -307,6 +322,13 @@
               </div>
             {/if}
           {/if}
+        {/if}
+        {#if session.actor.role !== 'guest'}
+          {#key session.actor.id}
+            <Journal {session} panel={view === 'capture' || view === 'journal' ? view : null}
+              {entryMoment} onvisited={() => entryMoment = null}
+              onjournal={() => open('journal')} onauthlost={() => verify(true)} />
+          {/key}
         {/if}
       </main>
     </div>
@@ -346,13 +368,13 @@
   h2 { font-size: 1.25rem; margin-top: 0; }
   p { margin: .5rem 0 1rem; }
   label { display: block; font-weight: 650; margin: .5rem 0; }
-  input, textarea { display: block; width: 100%; font: inherit; min-height: 44px; border: 1px solid #646d60; border-radius: .4rem; padding: .6rem; color: inherit; background: white; }
-  textarea { resize: vertical; max-width: 44rem; }
-  button { font: inherit; font-weight: 650; min-height: 44px; min-width: 44px; border: 1px solid #20492d; border-radius: .45rem; color: white; background: #20492d; padding: .45rem .75rem; cursor: pointer; }
-  button:hover { background: #153620; }
-  button:disabled { cursor: wait; }
-  button.quiet { color: #20492d; background: #f4f3eb; }
-  button.quiet:hover, button[aria-current] { background: #dfe8d9; }
+  :global(.shell input), :global(.shell textarea), :global(.shell select) { display: block; width: 100%; font: inherit; min-height: 44px; border: 1px solid #646d60; border-radius: .4rem; padding: .6rem; color: inherit; background: white; }
+  :global(.shell textarea) { resize: vertical; max-width: 44rem; }
+  :global(.shell button) { font: inherit; font-weight: 650; min-height: 44px; min-width: 44px; border: 1px solid #20492d; border-radius: .45rem; color: white; background: #20492d; padding: .45rem .75rem; cursor: pointer; }
+  :global(.shell button:hover) { background: #153620; }
+  :global(.shell button:disabled) { cursor: wait; }
+  :global(.shell button.quiet) { color: #20492d; background: #f4f3eb; }
+  :global(.shell button.quiet:hover), button[aria-current] { background: #dfe8d9; }
   form > button, .entry-option, .reauth { margin-top: 1rem; }
   .hint { color: #483f34; font-size: 1rem; }
   .account { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }

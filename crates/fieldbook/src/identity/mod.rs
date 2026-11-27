@@ -17,18 +17,18 @@ use std::{io, sync::Arc};
 use url::Url;
 use webauthn_rs::prelude::{Webauthn, WebauthnBuilder};
 
-mod routes;
-mod store;
+pub(crate) mod routes;
+pub(crate) mod store;
 
 pub use store::{issue_enrollment, provision_actor, revoke_credentials};
 
 const COOKIE: &str = "__Host-fieldbook";
-const CSRF: &str = "x-csrf-token";
+pub(crate) const CSRF: &str = "x-csrf-token";
 const IDLE_SECONDS: i32 = 15 * 60;
 
 #[derive(Clone)]
-struct Auth {
-    pool: PgPool,
+pub(crate) struct Auth {
+    pub(crate) pool: PgPool,
     webauthn: Arc<Webauthn>,
     origin: String,
     authority: String,
@@ -79,6 +79,7 @@ pub fn router(
         )
         .route("/api/v1/session/keep-alive", post(routes::keep_alive))
         .route("/api/v1/households/{id}", get(routes::household))
+        .merge(crate::journal::router())
         .with_state(state.clone())
         .merge(crate::web::router(web_root))
         .layer(middleware::from_fn_with_state(state, boundary)))
@@ -185,13 +186,18 @@ fn set_cookie(response: &mut Response, raw: &str, max_age: i32) {
 }
 
 #[derive(Debug)]
-enum Failure {
+pub(crate) enum Failure {
     Invalid,
     Unauthorized,
     Forbidden,
     Missing,
     Conflict,
     Unavailable,
+    Validation(&'static str),
+    Stale {
+        saved: serde_json::Value,
+        submitted: serde_json::Value,
+    },
 }
 
 impl IntoResponse for Failure {
@@ -202,6 +208,13 @@ impl IntoResponse for Failure {
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             Self::Missing => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict => (StatusCode::CONFLICT, "conflict"),
+            Self::Validation(code) => (StatusCode::UNPROCESSABLE_ENTITY, code),
+            Self::Stale { saved, submitted } => {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(json!({ "error": "stale_revision", "saved": saved, "submitted": submitted })),
+                ).into_response();
+            }
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
         };
         (status, Json(json!({ "error": code }))).into_response()
@@ -222,12 +235,12 @@ impl From<sqlx::Error> for Failure {
 }
 
 #[derive(Serialize, sqlx::FromRow)]
-struct Actor {
-    id: uuid::Uuid,
-    household_id: uuid::Uuid,
+pub(crate) struct Actor {
+    pub(crate) id: uuid::Uuid,
+    pub(crate) household_id: uuid::Uuid,
     username: String,
     display_name: String,
-    role: String,
+    pub(crate) role: String,
     #[serde(skip)]
     credential_generation: i64,
 }
