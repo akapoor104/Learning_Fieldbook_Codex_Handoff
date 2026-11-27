@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use time::Date;
 use uuid::Uuid;
 
-use super::{lock_moment, Actor, Failure};
+use super::{attachment_position, lock_moment, Actor, Failure};
 
 #[derive(Serialize, sqlx::FromRow)]
 pub(in crate::journal) struct Attachment {
@@ -15,17 +15,19 @@ pub(in crate::journal) struct Attachment {
     from_inbox: bool,
     matched_by: Option<Uuid>,
     matched_by_name: Option<String>,
+    source_url: Option<String>,
+    copy_asset_id: Option<Uuid>,
 }
 
 const ATTACHMENTS: &str = r#"
     SELECT a.id, a.label, a.uploader_id, uploader.display_name AS uploader_name,
            to_char(inbox.activity_date, 'YYYY-MM-DD') AS activity_date,
            (inbox.asset_id IS NOT NULL) AS from_inbox,
-           link.matched_by, matcher.display_name AS matched_by_name
+           link.matched_by, matcher.display_name AS matched_by_name, a.source_url, a.copy_asset_id
     FROM assets a
     JOIN actors uploader ON uploader.id = a.uploader_id
     LEFT JOIN family_photo_inbox inbox ON inbox.asset_id = a.id
-    LEFT JOIN moment_assets link ON link.asset_id = a.id
+    LEFT JOIN moment_assets link ON link.asset_id = a.id AND link.withdrawn_at IS NULL
     LEFT JOIN actors matcher ON matcher.id = link.matched_by
     WHERE a.household_id = $1
 "#;
@@ -71,7 +73,7 @@ pub(in crate::journal) async fn add(
     let mut tx = pool.begin().await?;
     sqlx::query_scalar::<_, Uuid>(
         "SELECT a.id FROM assets a JOIN actors l ON l.household_id = a.household_id
-         WHERE a.id = $1 AND a.household_id = $2 AND a.uploader_id = $3
+         WHERE a.id = $1 AND a.household_id = $2 AND a.uploader_id = $3 AND a.source_url IS NULL
            AND l.id = $4 AND l.role = 'learner' FOR NO KEY UPDATE OF a FOR SHARE OF l",
     )
     .bind(asset)
@@ -168,15 +170,7 @@ pub(in crate::journal) async fn set_match(
         return Ok(());
     }
     if matched {
-        let positions: (i64, i32) = sqlx::query_as(
-            "SELECT count(*), coalesce(max(position), -1) + 1 FROM moment_assets WHERE moment_id = $1",
-        )
-        .bind(moment)
-        .fetch_one(&mut *tx)
-        .await?;
-        if positions.0 >= 20 {
-            return Err(Failure::Validation("too_many_assets"));
-        }
+        let position = attachment_position(&mut tx, moment).await?;
         sqlx::query(
             "INSERT INTO moment_assets (moment_id, household_id, asset_id, position, matched_by)
              VALUES ($1, $2, $3, $4, $5)",
@@ -184,7 +178,7 @@ pub(in crate::journal) async fn set_match(
         .bind(moment)
         .bind(actor.household_id)
         .bind(asset)
-        .bind(positions.1)
+        .bind(position)
         .bind(actor.id)
         .execute(&mut *tx)
         .await?;

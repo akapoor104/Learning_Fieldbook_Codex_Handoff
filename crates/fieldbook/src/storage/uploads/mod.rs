@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::identity::{routes::family_actor, Auth, Failure};
 
+mod download;
 mod files;
 mod store;
 #[cfg(test)]
@@ -21,6 +22,7 @@ use store::{Manifest, Upload, PART_BYTES};
 
 pub(crate) fn router(media: Option<PrivateMedia>) -> Router<Auth> {
     let router = Router::new()
+        .route("/media/{id}", get(download::original))
         .route("/api/v1/uploads", post(begin))
         .route("/api/v1/uploads/{id}", get(status))
         .route(

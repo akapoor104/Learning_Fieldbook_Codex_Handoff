@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import PhotoPicker from './PhotoPicker.svelte';
+  import LinkPicker from './LinkPicker.svelte';
   import { api, RequestError, type Session } from './identity';
-  import { inbox, matchPath, type Attachment } from './photos';
+  import { attachmentPath, inbox, matchPath, type Attachment } from './photos';
 
   const { session, learner, moment, onauthlost }: {
     session: Session;
@@ -17,6 +18,7 @@
   let error = $state('');
   let status = $state('');
   let title = $state<HTMLHeadingElement>();
+  let undo = $state<{ item: Attachment; original?: string } | null>(null);
   let canMatch = $derived(session.actor.role === 'guardian' || session.actor.id === learner);
   const headingId = $props.id();
 
@@ -71,6 +73,38 @@
       pending = false;
     }
   }
+
+  async function changeArchive(item: Attachment, restore: boolean, original?: string) {
+    if (!moment || pending) return;
+    pending = true;
+    error = '';
+    status = '';
+    try {
+      const path = attachmentPath(moment, item.id);
+      await api<void>(original ? `${path}/copy` : path, restore ? 'PUT' : 'DELETE',
+        original ? { original_id: original } : undefined, session.csrf_token);
+      undo = restore ? null : { item, original };
+      status = original ? (restore ? 'Copy restored.' : 'Copy withdrawn.')
+        : (restore ? 'Link restored.' : 'Link removed.');
+      await load();
+      await tick();
+      title?.focus();
+    } catch (failure) {
+      if (sessionError(failure)) return;
+      if (failure instanceof RequestError && failure.status === 409) {
+        await load();
+        error = 'The archived copy changed. Review the current attachments.';
+      } else if (failure instanceof RequestError && failure.status === 422) {
+        const details = failure.body as { error?: string } | null;
+        error = details?.error === 'too_many_assets' ? 'This moment already has 20 attachments.'
+          : 'Write a sentence before removing the last attachment.';
+      } else {
+        error = 'The attachment could not be updated. Try again.';
+      }
+    } finally {
+      pending = false;
+    }
+  }
 </script>
 
 {#snippet label(item: Attachment)}
@@ -81,11 +115,29 @@
 {#if moment}
   <h2 bind:this={title} tabindex="-1">Attachments</h2>
   {#if attached.length}
-    <ul>
+    <ul aria-label="Moment attachments">
       {#each attached as item (item.id)}
         <li>
           {@render label(item)}
           {#if item.matched_by_name}<small>Matched by {item.matched_by_name}</small>{/if}
+          <small>Family · {item.source_url && !item.copy_asset_id ? 'Link only' : 'Copy saved'}</small>
+          {#if !item.source_url || item.copy_asset_id}
+            <a class="download" href={`/media/${item.id}`} download
+              aria-label={`Download original for ${item.label}`}>Download original</a>
+          {/if}
+          {#if item.source_url}
+            <a class="download" href={item.source_url} target="_blank" rel="noreferrer">Open source link</a>
+            {#if canMatch && session.actor.id === item.uploader_id}
+              {#if item.copy_asset_id}
+                <button type="button" class="quiet" disabled={pending}
+                  onclick={() => changeArchive(item, false, item.copy_asset_id ?? undefined)}>Withdraw copy</button>
+              {:else}
+                <PhotoPicker {session} {learner} {moment} copyFor={item.id} {onauthlost} onsaved={() => { void load(); }} />
+              {/if}
+              <button type="button" class="quiet" disabled={pending}
+                onclick={() => changeArchive(item, false)}>Remove link</button>
+            {/if}
+          {/if}
           {#if item.from_inbox && canMatch}
             <button type="button" class="quiet" aria-label={`Unmatch ${item.label}`}
               disabled={pending} onclick={() => change(item, false)}>Unmatch</button>
@@ -95,6 +147,15 @@
     </ul>
   {:else if !loading && !error}
     <p>No attachments yet.</p>
+  {/if}
+  {#if undo}
+    <button type="button" class="quiet" disabled={pending}
+      onclick={() => { if (undo) void changeArchive(undo.item, true, undo.original); }}>
+      {undo.original ? 'Restore copy' : 'Restore link'}
+    </button>
+  {/if}
+  {#if canMatch}
+    <LinkPicker {session} {moment} {onauthlost} onsaved={() => { void load(); }} />
   {/if}
 {/if}
 
@@ -136,5 +197,6 @@
   li { margin: .625rem 0; }
   small, .filename { display: block; overflow-wrap: anywhere; }
   li button { margin-top: .25rem; }
+  .download { display: inline-block; margin: .35rem .75rem .35rem 0; }
   .error { color: #8b2620; }
 </style>

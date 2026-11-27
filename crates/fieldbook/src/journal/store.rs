@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::{activity_date, normalized_note, Actor, CreateMoment, EditMoment, Failure};
 
+pub(super) mod archive;
 pub(super) mod contributions;
 pub(super) mod photos;
 
@@ -37,7 +38,8 @@ const MOMENT: &str = r#"
            r.revision, r.editor_id, editor.display_name AS editor_name,
            to_char(r.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
            r.note, to_char(r.activity_date, 'YYYY-MM-DD') AS activity_date,
-           ARRAY(SELECT asset_id FROM moment_assets WHERE moment_id = m.id ORDER BY position)
+           ARRAY(SELECT asset_id FROM moment_assets
+                 WHERE moment_id = m.id AND withdrawn_at IS NULL ORDER BY position)
                AS asset_ids,
            (confirmation.confirmed_at IS NOT NULL AND confirmation.withdrawn_at IS NULL) AS confirmed
     FROM moments m
@@ -252,6 +254,23 @@ async fn link_asset(
         return Err(Failure::Validation("duplicate_asset"));
     }
     Ok(())
+}
+
+async fn attachment_position(
+    tx: &mut Transaction<'_, Postgres>,
+    moment: Uuid,
+) -> Result<i32, Failure> {
+    let (count, position): (i64, i32) = sqlx::query_as(
+        "SELECT count(*) FILTER (WHERE withdrawn_at IS NULL), coalesce(max(position), -1) + 1
+         FROM moment_assets WHERE moment_id = $1",
+    )
+    .bind(moment)
+    .fetch_one(&mut **tx)
+    .await?;
+    if count >= 20 {
+        return Err(Failure::Validation("too_many_assets"));
+    }
+    Ok(position)
 }
 
 #[derive(sqlx::FromRow)]

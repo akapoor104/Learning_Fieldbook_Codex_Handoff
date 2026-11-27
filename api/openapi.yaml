@@ -348,6 +348,107 @@ paths:
         '200': { $ref: '#/components/responses/FamilyFiles' }
         '401': { $ref: '#/components/responses/SignInRequired' }
         '404': { $ref: '#/components/responses/JournalMissing' }
+  /assets/links:
+    post:
+      summary: Save an HTTPS source pointer under a stable asset ID
+      description: The app stores the URL without fetching it. An exact retry returns the original asset ID.
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [submission_key, label, source_url]
+              properties:
+                submission_key: { type: string, format: uuid }
+                label: { type: string, minLength: 1, maxLength: 255 }
+                source_url: { type: string, format: uri, maxLength: 4096 }
+      responses:
+        '201':
+          description: Source pointer ID for ordered moment creation or attachment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { $ref: '#/components/responses/SubmissionConflict' }
+        '422': { description: Invalid label or HTTPS URL }
+  /moments/{moment}/attachments/{asset}:
+    parameters:
+      - $ref: '#/components/parameters/AttachmentMomentId'
+      - $ref: '#/components/parameters/PhotoAssetId'
+    put:
+      summary: Attach the actor’s link to a family moment or restore its previous position
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Link is attached }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '422': { description: Moment already has 20 attachments }
+    delete:
+      summary: Withdraw the link from this family moment
+      security: [{ session: [], csrf: [] }]
+      responses:
+        '204': { description: Link is withdrawn }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '422': { description: Removing the only attachment would leave the moment empty }
+  /moments/{moment}/attachments/{asset}/copy:
+    parameters:
+      - $ref: '#/components/parameters/AttachmentMomentId'
+      - $ref: '#/components/parameters/PhotoAssetId'
+    put:
+      summary: Archive a verified original supplied by the actor who added the link
+      security: [{ session: [], csrf: [] }]
+      requestBody: { $ref: '#/components/requestBodies/ArchiveCopy' }
+      responses:
+        '204': { description: Copy is available under the link asset ID }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: A different original is saved for this link }
+    delete:
+      summary: Withdraw the named original from the link and retain the bytes
+      security: [{ session: [], csrf: [] }]
+      requestBody: { $ref: '#/components/requestBodies/ArchiveCopy' }
+      responses:
+        '204': { description: Copy association is withdrawn }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '409': { description: A different original is saved for this link }
+  /media/{id}:
+    servers: [{ url: / }]
+    parameters:
+      - $ref: '#/components/parameters/UploadId'
+    get:
+      summary: Stream the private original of an authorized family attachment
+      description: Use the attachment ID. Supports a single byte range. Source URLs are never opened by this route.
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/OriginalDownload' }
+        '206': { $ref: '#/components/responses/OriginalDownload' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '416': { description: Range not satisfiable }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+    head:
+      summary: Read authorized download headers
+      security: [{ session: [] }]
+      responses:
+        '200': { description: Download headers without a body }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
   /family/photo-inbox/{learner}:
     parameters:
       - $ref: '#/components/parameters/PhotoLearnerId'
@@ -524,6 +625,11 @@ components:
       in: header
       name: X-CSRF-Token
   parameters:
+    AttachmentMomentId:
+      in: path
+      name: moment
+      required: true
+      schema: { type: string, format: uuid }
     PhotoLearnerId:
       in: path
       name: learner
@@ -552,7 +658,7 @@ components:
   schemas:
     FamilyFile:
       type: object
-      required: [id, label, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name]
+      required: [id, label, uploader_id, uploader_name, activity_date, from_inbox, matched_by, matched_by_name, source_url, copy_asset_id]
       properties:
         id: { type: string, format: uuid }
         label: { type: string }
@@ -562,6 +668,8 @@ components:
         from_inbox: { type: boolean }
         matched_by: { type: [string, 'null'], format: uuid }
         matched_by_name: { type: [string, 'null'] }
+        source_url: { type: [string, 'null'], format: uri, description: Null for directly uploaded originals }
+        copy_asset_id: { type: [string, 'null'], format: uuid, description: The verified original associated with a link }
     PrivateUpload:
       type: object
       required: [id, label, byte_count, received, media_type, asset_id]
@@ -646,6 +754,16 @@ components:
         created_at: { type: string, format: date-time }
         withdrawn: { type: boolean }
   requestBodies:
+    ArchiveCopy:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [original_id]
+            properties:
+              original_id: { type: string, format: uuid }
     ExpectedMomentRevision:
       required: true
       content:
@@ -666,6 +784,16 @@ components:
               ceremony: { type: string }
               credential: { type: object, description: Browser WebAuthn credential JSON }
   responses:
+    OriginalDownload:
+      description: Original bytes as a private attachment
+      headers:
+        Content-Disposition:
+          schema: { type: string }
+        Accept-Ranges:
+          schema: { type: string }
+      content:
+        application/octet-stream:
+          schema: { type: string, format: binary }
     FamilyFiles:
       description: Authorized file labels and attribution
       content:

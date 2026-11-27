@@ -9,7 +9,8 @@
     "test": "npm run test:identity && node tests/notebook.mjs && node tests/journal.mjs",
     "test:identity": "node tests/identity.mjs",
     "build": "vite build",
-    "test:photos": "node tests/photos.mjs"
+    "test:photos": "node tests/photos.mjs",
+    "test:archive": "node tests/archive.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.2",
@@ -18,5 +19,8 @@
     "svelte-check": "4.7.8",
     "typescript": "5.9.3",
     "vite": "8.4.0"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.0.1"
   }
 }

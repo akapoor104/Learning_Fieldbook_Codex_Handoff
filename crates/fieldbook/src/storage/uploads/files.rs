@@ -20,7 +20,7 @@ impl PrivateMedia {
         self.0.join(format!("staging-{id}"))
     }
 
-    fn original(&self, id: Uuid) -> PathBuf {
+    pub(super) fn original(&self, id: Uuid) -> PathBuf {
         self.0.join(original_key(id))
     }
 

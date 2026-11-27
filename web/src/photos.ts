@@ -1,3 +1,5 @@
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { api, RequestError } from './identity';
 
 export interface Attachment {
@@ -9,6 +11,8 @@ export interface Attachment {
   from_inbox: boolean;
   matched_by: string | null;
   matched_by_name: string | null;
+  source_url: string | null;
+  copy_asset_id: string | null;
 }
 
 interface Upload {
@@ -19,7 +23,7 @@ interface Upload {
 
 export const photoTypes = 'image/jpeg,image/png,image/webp';
 export const fileTypes = photoTypes + ',application/pdf,application/zip,video/mp4,video/quicktime,video/webm';
-export const pickerLimit = 64 * 1024 * 1024;
+export const pickerLimit = 8 * 1024 * 1024 * 1024;
 const partBytes = 8 * 1024 * 1024;
 export const inbox = '/family/photo-inbox';
 
@@ -27,18 +31,22 @@ export function matchPath(asset: string, moment: string) {
   return `${inbox}/${asset}/match/${moment}`;
 }
 
+export function attachmentPath(moment: string, asset: string) {
+  return `/moments/${moment}/attachments/${asset}`;
+}
+
 export async function uploadFile(file: File, submission: string, csrf: string, progress: (bytes: number) => void) {
-  // This picker bounds the one-shot browser digest. The server still accepts
-  // larger resumable transfers from clients that compute digests incrementally.
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
-  const sha256 = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const digest = sha256.create();
+  for (let offset = 0; offset < file.size; offset += partBytes) {
+    digest.update(new Uint8Array(await file.slice(offset, offset + partBytes).arrayBuffer()));
+  }
   let upload = await api<Upload>('/uploads', 'POST', {
     submission_key: submission,
     label: file.name,
     byte_count: file.size,
     media_type: file.type === 'application/x-zip-compressed' ? 'application/zip'
       : file.type || 'application/octet-stream',
-    sha256,
+    sha256: bytesToHex(digest.digest()),
   }, csrf);
   while (upload.received < file.size) {
     progress(upload.received);

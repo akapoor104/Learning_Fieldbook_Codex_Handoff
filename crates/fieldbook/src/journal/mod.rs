@@ -22,6 +22,7 @@ pub(crate) fn router() -> Router<Auth> {
         .route("/api/v1/moments/{id}", get(read).patch(edit))
         .route("/api/v1/moments/{id}/revisions", get(revisions))
         .route("/api/v1/moments/{id}/attachments", get(moment_attachments))
+        .merge(archive::router())
         .route("/api/v1/family/photo-inbox/{learner}", get(photo_inbox))
         .route(
             "/api/v1/family/photo-inbox/{learner}/{asset}",
@@ -49,6 +50,8 @@ pub(crate) fn router() -> Router<Auth> {
             post(restore_comment),
         )
 }
+
+mod archive;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
