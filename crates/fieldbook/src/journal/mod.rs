@@ -18,6 +18,8 @@ mod tests;
 pub(crate) fn router() -> Router<Auth> {
     Router::new()
         .route("/api/v1/moments", get(list).post(create))
+        .route("/api/v1/diary", get(diary))
+        .route("/api/v1/diary/{id}", get(diary_entry))
         .route("/moments/new/", post(create_form))
         .route("/api/v1/moments/{id}", get(read).patch(edit))
         .route("/api/v1/moments/{id}/revisions", get(revisions))
@@ -176,6 +178,25 @@ async fn list(
 ) -> Result<Json<Vec<store::Moment>>, Failure> {
     let actor = family_actor(&auth, &headers, false).await?;
     Ok(Json(store::list(&auth.pool, &actor).await?))
+}
+
+async fn diary(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<store::Moment>>, Failure> {
+    let actor = family_actor(&auth, &headers, false).await?;
+    Ok(Json(store::diary(&auth.pool, &actor).await?))
+}
+
+async fn diary_entry(
+    State(auth): State<Auth>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<store::Moment>, Failure> {
+    let actor = family_actor(&auth, &headers, false).await?;
+    Ok(Json(
+        store::diary_entry(&auth.pool, &actor, moment_id(&id)?).await?,
+    ))
 }
 
 async fn read(

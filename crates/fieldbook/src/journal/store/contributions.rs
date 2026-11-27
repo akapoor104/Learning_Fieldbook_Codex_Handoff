@@ -81,8 +81,8 @@ const COMMENTS: &str = r#"
            c.withdrawn_at IS NOT NULL AS withdrawn
     FROM moment_comments c
     JOIN actors a ON a.id = c.author_id
-    JOIN moments m ON m.id = c.moment_id AND m.household_id = c.household_id
-    WHERE c.household_id = $1 AND c.moment_id = $2 AND m.visibility = 'family'
+    JOIN family_moments m ON m.id = c.moment_id AND m.household_id = c.household_id
+    WHERE c.household_id = $1 AND c.moment_id = $2
       AND (c.withdrawn_at IS NULL OR c.author_id = $3)
 "#;
 

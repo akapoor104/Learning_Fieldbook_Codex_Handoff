@@ -256,3 +256,11 @@ pub(crate) struct Actor {
     #[serde(skip)]
     credential_generation: i64,
 }
+
+pub(crate) fn diary_owner(actor: &Actor) -> Result<uuid::Uuid, Failure> {
+    if actor.role == "learner" && !actor.id.is_nil() {
+        Ok(actor.id)
+    } else {
+        Err(Failure::Missing)
+    }
+}

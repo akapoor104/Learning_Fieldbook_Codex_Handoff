@@ -24,7 +24,7 @@ const ATTACHMENTS: &str = r#"
            to_char(inbox.activity_date, 'YYYY-MM-DD') AS activity_date,
            (inbox.asset_id IS NOT NULL) AS from_inbox,
            link.matched_by, matcher.display_name AS matched_by_name, a.source_url, a.copy_asset_id
-    FROM assets a
+    FROM family_assets a
     JOIN actors uploader ON uploader.id = a.uploader_id
     LEFT JOIN family_photo_inbox inbox ON inbox.asset_id = a.id
     LEFT JOIN moment_assets link ON link.asset_id = a.id AND link.withdrawn_at IS NULL
@@ -72,7 +72,7 @@ pub(in crate::journal) async fn add(
     }
     let mut tx = pool.begin().await?;
     sqlx::query_scalar::<_, Uuid>(
-        "SELECT a.id FROM assets a JOIN actors l ON l.household_id = a.household_id
+        "SELECT a.id FROM family_assets a JOIN actors l ON l.household_id = a.household_id
          WHERE a.id = $1 AND a.household_id = $2 AND a.uploader_id = $3 AND a.source_url IS NULL
            AND l.id = $4 AND l.role = 'learner' FOR NO KEY UPDATE OF a FOR SHARE OF l",
     )
@@ -125,7 +125,7 @@ pub(in crate::journal) async fn linked(
     super::read(pool, actor, moment).await?;
     Ok(sqlx::query_as(&format!(
         "{ATTACHMENTS} AND link.moment_id = $2
-         AND EXISTS (SELECT 1 FROM moments WHERE id = $2 AND household_id = $1 AND visibility = 'family')
+         AND EXISTS (SELECT 1 FROM family_moments WHERE id = $2 AND household_id = $1)
          ORDER BY link.position"
     ))
     .bind(actor.household_id)

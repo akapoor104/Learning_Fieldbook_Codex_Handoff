@@ -23,6 +23,7 @@ use store::{Manifest, Upload, PART_BYTES};
 pub(crate) fn router(media: Option<PrivateMedia>) -> Router<Auth> {
     let router = Router::new()
         .route("/media/{id}", get(download::original))
+        .route("/diary/media/{id}", get(download::diary_original))
         .route("/api/v1/uploads", post(begin))
         .route("/api/v1/uploads/{id}", get(status))
         .route(

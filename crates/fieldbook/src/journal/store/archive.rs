@@ -61,7 +61,7 @@ pub(in crate::journal) async fn set_link(
         return Err(Failure::Missing);
     }
     sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM assets WHERE id = $1 AND household_id = $2 AND uploader_id = $3
+        "SELECT id FROM family_assets WHERE id = $1 AND household_id = $2 AND uploader_id = $3
            AND source_url IS NOT NULL",
     )
     .bind(asset)
@@ -123,7 +123,7 @@ pub(in crate::journal) async fn set_copy(
         return Err(Failure::Missing);
     }
     let current: Option<Uuid> = sqlx::query_scalar(
-        "SELECT a.copy_asset_id FROM assets a
+        "SELECT a.copy_asset_id FROM family_assets a
          JOIN moment_assets link ON link.asset_id = a.id AND link.household_id = a.household_id
          WHERE a.id = $1 AND a.household_id = $2 AND a.uploader_id = $3
            AND a.source_url IS NOT NULL AND link.moment_id = $4 AND link.withdrawn_at IS NULL

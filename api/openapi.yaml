@@ -252,6 +252,24 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/MomentList' }
         '404': { $ref: '#/components/responses/JournalMissing' }
+  /diary:
+    get:
+      summary: List entries in the signed-in learner’s own diary
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MomentList' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+  /diary/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MomentId'
+    get:
+      summary: Read an entry from the signed-in learner’s own diary
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JournalMoment' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
   /moments/{id}/confirmation:
     parameters:
       - $ref: '#/components/parameters/MomentId'
@@ -433,6 +451,29 @@ paths:
     get:
       summary: Stream the private original of an authorized family attachment
       description: Use the attachment ID. Supports a single byte range. Source URLs are never opened by this route.
+      security: [{ session: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/OriginalDownload' }
+        '206': { $ref: '#/components/responses/OriginalDownload' }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '416': { description: Range not satisfiable }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+    head:
+      summary: Read authorized download headers
+      security: [{ session: [] }]
+      responses:
+        '200': { description: Download headers without a body }
+        '401': { $ref: '#/components/responses/SignInRequired' }
+        '404': { $ref: '#/components/responses/JournalMissing' }
+        '503': { $ref: '#/components/responses/UploadUnavailable' }
+  /diary/media/{id}:
+    servers: [{ url: / }]
+    parameters:
+      - $ref: '#/components/parameters/UploadId'
+    get:
+      summary: Stream the private original of an attachment from the signed-in learner’s own diary
+      description: Use the attachment ID. Supports a single byte range.
       security: [{ session: [] }]
       responses:
         '200': { $ref: '#/components/responses/OriginalDownload' }
@@ -732,7 +773,7 @@ components:
         editor_id: { type: string, format: uuid }
         editor_name: { type: string }
         voice: { type: string, enum: [student, scribed, guardian] }
-        visibility: { const: family }
+        visibility: { type: string, enum: [family, diary] }
         activity_date: { type: [string, 'null'], format: date }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

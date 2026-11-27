@@ -204,3 +204,83 @@ async fn journal_retry_and_revision_recovery() {
         learner.id, first.id
     );
 }
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL 16 database in FIELDBOOK_TEST_DATABASE_URL"]
+async fn diary_scope_selects_only_the_current_learner() {
+    let url = std::env::var("FIELDBOOK_TEST_DATABASE_URL").expect("set disposable database URL");
+    let pool = storage::connect_lazy(url.parse().unwrap());
+    storage::migrate(&pool).await.unwrap();
+    let family = household(&pool, "Fictional diary A").await;
+    let learner = actor(&pool, family, "owner", "learner").await;
+    let sibling = actor(&pool, family, "sibling", "learner").await;
+    let guardian = actor(&pool, family, "parent", "guardian").await;
+    let guest = actor(&pool, family, "relative", "guest").await;
+    let other_family = household(&pool, "Fictional diary B").await;
+    let outsider = actor(&pool, other_family, "outsider", "learner").await;
+    let fixture: Value =
+        serde_json::from_str(include_str!("../../../../fixtures/household.json")).unwrap();
+    let private = fixture["moments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["visibility"] == "diary")
+        .unwrap();
+    let marker = private["title"].as_str().unwrap();
+    let ordinary = store::create(&pool, &learner, &submission(41, Some("Family example")))
+        .await
+        .unwrap();
+
+    let mut tx = pool.begin().await.unwrap();
+    // The operator seeds only invented content. Diary writes have no application route.
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO moments
+            (household_id, learner_id, recorder_id, submission_key, submission_hash, voice, visibility)
+         VALUES ($1, $2, $2, gen_random_uuid(), decode(repeat('00', 32), 'hex'), 'student', 'diary')
+         RETURNING id",
+    )
+    .bind(family)
+    .bind(learner.id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    store::insert_revision(&mut tx, &learner, id, 1, Some(marker), None)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    assert_eq!(store::diary(&pool, &learner).await.unwrap()[0].id, id);
+    assert_eq!(
+        store::diary_entry(&pool, &learner, id)
+            .await
+            .unwrap()
+            .note
+            .as_deref(),
+        Some(marker)
+    );
+    for actor in [&learner, &guardian, &sibling] {
+        let entries = store::list(&pool, actor).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, ordinary.id);
+        assert!(matches!(
+            store::read(&pool, actor, id).await,
+            Err(Failure::Missing)
+        ));
+        assert!(matches!(
+            store::history(&pool, actor, id).await,
+            Err(Failure::Missing)
+        ));
+    }
+    for actor in [&sibling, &guardian, &guest, &outsider] {
+        assert!(matches!(
+            store::diary_entry(&pool, actor, id).await,
+            Err(Failure::Missing)
+        ));
+    }
+    assert!(store::diary(&pool, &sibling).await.unwrap().is_empty());
+    assert!(store::diary(&pool, &outsider).await.unwrap().is_empty());
+    assert!(matches!(
+        store::diary_entry(&pool, &learner, ordinary.id).await,
+        Err(Failure::Missing)
+    ));
+}

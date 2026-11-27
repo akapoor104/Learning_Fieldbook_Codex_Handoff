@@ -161,22 +161,21 @@ try {
       uploader: 'parent-one', original_hash_preserved: true,
     }));
   } else {
-    const diary = await writeMoment(learner, 'My private diary fixture.');
-    assert.equal((await request(parent, `${inbox}/${asset.id}/match/${diary.id}`, 'POST')).status, 204);
+    const otherMoment = await writeMoment(learner, 'A different family moment.');
+    const otherPath = `${inbox}/${asset.id}/match/${otherMoment.id}`;
+    assert.equal((await request(parent, otherPath, 'POST')).status, 204);
     assert.equal((await request(learner, path, 'POST')).status, 409);
-    assert.equal((await request(parent, `${inbox}/${asset.id}/match/${diary.id}`, 'DELETE')).status, 204);
-    // B4 adds diary creation. Temporarily admit a synthetic diary row to test
-    // the existing server filter against a real ID in this disposable database.
-    sql(`ALTER TABLE moments DROP CONSTRAINT moments_visibility_check;
-         UPDATE moments SET visibility = 'diary' WHERE id = '${diary.id}'`);
+    assert.equal((await request(parent, otherPath, 'DELETE')).status, 204);
+    // Seed a separate unlinked record under the disposable database's operator role.
+    const diary = await writeMoment(learner, 'My private diary fixture.');
+    sql(`UPDATE moments SET visibility = 'diary' WHERE id = '${diary.id}'`);
     try {
       const diaryPath = `${inbox}/${asset.id}/match/${diary.id}`;
       assert.equal((await request(parent, diaryPath, 'POST')).status, 404);
       assert.equal((await request(parent, `/moments/${diary.id}/attachments`)).status, 404);
       assert.equal(count(`SELECT count(*) FROM moment_assets WHERE moment_id = '${diary.id}'`), 0);
     } finally {
-      sql(`UPDATE moments SET visibility = 'family' WHERE id = '${diary.id}';
-           ALTER TABLE moments ADD CONSTRAINT moments_visibility_check CHECK (visibility = 'family')`);
+      sql(`UPDATE moments SET visibility = 'family' WHERE id = '${diary.id}'`);
     }
 
     const outsider = await signIn('other-learner');

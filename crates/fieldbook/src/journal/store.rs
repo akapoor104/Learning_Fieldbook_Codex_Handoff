@@ -49,7 +49,7 @@ const MOMENT: &str = r#"
     JOIN actors editor ON editor.id = r.editor_id
     LEFT JOIN moment_confirmations confirmation
       ON confirmation.moment_id = m.id AND confirmation.revision = r.revision
-    WHERE m.household_id = $1 AND m.visibility = 'family'
+    WHERE m.household_id = $1 AND m.scope_owner = $2
 "#;
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -71,12 +71,26 @@ pub(super) async fn learners(pool: &PgPool, actor: &Actor) -> Result<Vec<Learner
 }
 
 pub(super) async fn list(pool: &PgPool, actor: &Actor) -> Result<Vec<Moment>, Failure> {
+    list_scope(pool, actor.household_id, Uuid::nil()).await
+}
+
+pub(super) async fn diary(pool: &PgPool, actor: &Actor) -> Result<Vec<Moment>, Failure> {
+    let owner = crate::identity::diary_owner(actor)?;
+    list_scope(pool, actor.household_id, owner).await
+}
+
+async fn list_scope(
+    pool: &PgPool,
+    household: Uuid,
+    scope_owner: Uuid,
+) -> Result<Vec<Moment>, Failure> {
     Ok(sqlx::query_as(&format!(
         "{MOMENT} AND r.revision = m.revision
          ORDER BY coalesce(r.activity_date, (m.created_at AT TIME ZONE 'America/Los_Angeles')::date)
          DESC, m.created_at DESC, m.id DESC"
     ))
-    .bind(actor.household_id)
+    .bind(household)
+    .bind(scope_owner)
     .fetch_all(pool)
     .await?)
 }
@@ -85,16 +99,32 @@ pub(super) async fn read(pool: &PgPool, actor: &Actor, id: Uuid) -> Result<Momen
     snapshot(pool, actor.household_id, id, None).await
 }
 
+pub(super) async fn diary_entry(pool: &PgPool, actor: &Actor, id: Uuid) -> Result<Moment, Failure> {
+    let owner = crate::identity::diary_owner(actor)?;
+    scoped_snapshot(pool, actor.household_id, owner, id, None).await
+}
+
 async fn snapshot<'e>(
     executor: impl PgExecutor<'e>,
     household: Uuid,
     id: Uuid,
     revision: Option<i32>,
 ) -> Result<Moment, Failure> {
+    scoped_snapshot(executor, household, Uuid::nil(), id, revision).await
+}
+
+async fn scoped_snapshot<'e>(
+    executor: impl PgExecutor<'e>,
+    household: Uuid,
+    scope_owner: Uuid,
+    id: Uuid,
+    revision: Option<i32>,
+) -> Result<Moment, Failure> {
     sqlx::query_as(&format!(
-        "{MOMENT} AND m.id = $2 AND r.revision = coalesce($3, m.revision)"
+        "{MOMENT} AND m.id = $3 AND r.revision = coalesce($4, m.revision)"
     ))
     .bind(household)
+    .bind(scope_owner)
     .bind(id)
     .bind(revision)
     .fetch_optional(executor)
@@ -107,8 +137,9 @@ pub(super) async fn history(
     actor: &Actor,
     id: Uuid,
 ) -> Result<Vec<Moment>, Failure> {
-    let rows = sqlx::query_as(&format!("{MOMENT} AND m.id = $2 ORDER BY r.revision DESC"))
+    let rows = sqlx::query_as(&format!("{MOMENT} AND m.id = $3 ORDER BY r.revision DESC"))
         .bind(actor.household_id)
+        .bind(Uuid::nil())
         .bind(id)
         .fetch_all(pool)
         .await?;
@@ -167,8 +198,8 @@ pub(super) async fn create(
         id
     } else {
         let (id, original): (Uuid, Vec<u8>) = sqlx::query_as(
-            "SELECT id, submission_hash FROM moments WHERE household_id = $1 AND recorder_id = $2
-               AND submission_key = $3 AND visibility = 'family'",
+            "SELECT id, submission_hash FROM family_moments WHERE household_id = $1 AND recorder_id = $2
+               AND submission_key = $3",
         )
         .bind(actor.household_id)
         .bind(actor.id)
@@ -221,7 +252,7 @@ async fn link_asset(
     position: i32,
 ) -> Result<(), Failure> {
     let allowed = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM assets WHERE id = $1 AND household_id = $2 AND uploader_id = $3 FOR SHARE",
+        "SELECT id FROM family_assets WHERE id = $1 AND household_id = $2 AND uploader_id = $3 FOR SHARE",
     )
     .bind(asset)
     .bind(actor.household_id)
@@ -297,8 +328,8 @@ async fn lock_moment(
     id: Uuid,
 ) -> Result<MomentOwner, Failure> {
     sqlx::query_as(
-        "SELECT recorder_id, learner_id, voice, revision FROM moments
-         WHERE id = $1 AND household_id = $2 AND visibility = 'family' FOR NO KEY UPDATE",
+        "SELECT recorder_id, learner_id, voice, revision FROM family_moments
+         WHERE id = $1 AND household_id = $2 FOR NO KEY UPDATE",
     )
     .bind(id)
     .bind(household)

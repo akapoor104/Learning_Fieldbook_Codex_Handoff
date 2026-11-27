@@ -10,7 +10,8 @@
     "test:identity": "node tests/identity.mjs",
     "build": "vite build",
     "test:photos": "node tests/photos.mjs",
-    "test:archive": "node tests/archive.mjs"
+    "test:archive": "node tests/archive.mjs",
+    "test:diary": "node tests/diary.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.2",

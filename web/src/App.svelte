@@ -2,9 +2,10 @@
   import { onMount, tick } from 'svelte';
   import { api, authenticate, enroll, RequestError, supportsPasskeys, type Session } from './identity';
 
+  import Diary from './Diary.svelte';
   import Journal from './Journal.svelte';
 
-  type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos';
+  type View = 'home' | 'projects' | 'capture' | 'journal' | 'photos' | 'diary';
 
   let session = $state<Session | null>(null);
   let checking = $state(true);
@@ -18,6 +19,7 @@
   let username = $state('');
   let invitation = $state('');
   let view = $state<View>('home');
+  let entryDiary = false;
   let entryMoment = $state<string | null>(null);
   let heading = $state<HTMLHeadingElement>();
   let nameField = $state<HTMLInputElement>();
@@ -50,6 +52,7 @@
     enrolling = false;
     warning = false;
     view = 'home';
+    entryDiary = false;
     entryMoment = null;
   }
 
@@ -59,7 +62,9 @@
     clearTimeout(expirationTimer);
     clearTimeout(elevationTimer);
     session = next;
-    if (entryMoment && next.actor.role !== 'guest') view = 'journal';
+    if (entryDiary && next.actor.role === 'learner') view = 'diary';
+    else if (entryMoment && next.actor.role !== 'guest') view = 'journal';
+    entryDiary = false;
     sessionCheckError = false;
     covered = checkAfterAction || document.visibilityState === 'hidden';
     if (privateContent) privateContent.hidden = covered;
@@ -115,6 +120,7 @@
   }
 
   onMount(() => {
+    entryDiary = window.location.pathname === '/diary/';
     entryMoment = new URLSearchParams(window.location.search).get('moment');
     // Remove account state before the browser can save a page snapshot.
     function pageHide() {
@@ -315,6 +321,9 @@
               <button type="button" onclick={() => open('capture')}>Write a sentence</button>
               <button type="button" class="quiet" onclick={() => open('journal')}>Family journal</button>
               <button type="button" class="quiet" onclick={() => open('photos')}>Family photos to match</button>
+              {#if session.actor.role === 'learner'}
+                <button type="button" class="quiet" onclick={() => open('diary')}>My diary</button>
+              {/if}
             </div>
             {#if session.actor.role === 'guardian'}
               <div class="reauth">
@@ -323,6 +332,10 @@
               </div>
             {/if}
           {/if}
+        {:else if view === 'diary' && session.actor.role === 'learner'}
+          {#key session.actor.id}
+            <Diary {session} onauthlost={() => verify(true)} />
+          {/key}
         {/if}
         {#if session.actor.role !== 'guest'}
           {#key session.actor.id}

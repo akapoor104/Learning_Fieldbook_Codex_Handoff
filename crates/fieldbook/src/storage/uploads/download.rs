@@ -9,7 +9,7 @@ use axum::{
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 
-use crate::identity::{routes::family_actor, Auth, Failure};
+use crate::identity::{diary_owner, routes::family_actor, Actor, Auth, Failure};
 
 use super::{files::original_key, upload_id, PrivateMedia};
 
@@ -20,27 +20,50 @@ pub(super) async fn original(
     request: Request,
 ) -> Result<Response, Failure> {
     let actor = family_actor(&auth, request.headers(), false).await?;
-    let id = upload_id(&id)?;
+    scoped_original(&auth, &actor, Uuid::nil(), media, upload_id(&id)?, request).await
+}
+
+pub(super) async fn diary_original(
+    State(auth): State<Auth>,
+    Extension(media): Extension<Option<PrivateMedia>>,
+    Path(id): Path<String>,
+    request: Request,
+) -> Result<Response, Failure> {
+    let actor = family_actor(&auth, request.headers(), false).await?;
+    let owner = diary_owner(&actor)?;
+    scoped_original(&auth, &actor, owner, media, upload_id(&id)?, request).await
+}
+
+async fn scoped_original(
+    auth: &Auth,
+    actor: &Actor,
+    scope_owner: Uuid,
+    media: Option<PrivateMedia>,
+    id: Uuid,
+    request: Request,
+) -> Result<Response, Failure> {
     let (original, key, label): (Uuid, String, String) = sqlx::query_as(
         "SELECT original.id, original.storage_key, original.label
          FROM assets a JOIN assets original ON original.id = coalesce(a.copy_asset_id, a.id)
-             AND original.household_id = a.household_id AND original.source_url IS NULL
-         WHERE a.id = $1 AND a.household_id = $2 AND (
+             AND original.household_id = a.household_id AND original.scope_owner = a.scope_owner
+             AND original.source_url IS NULL
+         WHERE a.id = $1 AND a.household_id = $2 AND a.scope_owner = $3 AND (
              EXISTS (
                  SELECT 1 FROM moment_assets ma JOIN moments m ON m.id = ma.moment_id
                      AND m.household_id = ma.household_id
                  WHERE ma.asset_id = a.id AND ma.household_id = a.household_id
-                     AND m.visibility = 'family' AND ma.withdrawn_at IS NULL
-             ) OR EXISTS (
+                     AND m.scope_owner = $3 AND ma.withdrawn_at IS NULL
+             ) OR ($3 = '00000000-0000-0000-0000-000000000000' AND EXISTS (
                  SELECT 1 FROM family_photo_inbox fi
                  WHERE fi.asset_id = a.id AND fi.household_id = a.household_id
-                     AND ($3 OR fi.learner_id = $4)
+                     AND ($4 OR fi.learner_id = $5)
                      AND NOT EXISTS (SELECT 1 FROM moment_assets ma WHERE ma.asset_id = fi.asset_id)
-             )
+             ))
          )",
     )
     .bind(id)
     .bind(actor.household_id)
+    .bind(scope_owner)
     .bind(actor.role == "guardian")
     .bind(actor.id)
     .fetch_optional(&auth.pool)
