@@ -1,6 +1,6 @@
 {
   "ticket": "B4",
-  "revision": "902b94aaeb1f67340b04f11a4b44a97be1d14f2a",
+  "revision": "7d67c978d5088c3543671dba4b80ca9253c9a242",
   "implementer": "Codex",
   "reviewer": "Independent Codex reviewer",
   "checks": {
@@ -14,12 +14,13 @@
       "exit_code": 0
     },
     "B4.2": {
-      "state": "not-run",
+      "state": "passed",
       "kind": "command",
-      "procedure": "",
-      "observed": "",
-      "artifact": "",
-      "sha256": ""
+      "procedure": "Run cargo test --workspace --locked and the isolated PostgreSQL suites. Run npm --prefix web run test:parent-access in the disposable Compose release and inspect both committed audit rows.",
+      "observed": "Both guardians reauthenticated with their own passkeys, read the selected diary and original, and produced distinct durable events visible through the learner history API. Failed audit insertion left the ordinary session intact and diary access denied. Logout revoked the rotated session and expiry returned the second guardian to ordinary visibility.",
+      "artifact": "B4.2.md",
+      "sha256": "3ee1c7844a3c08573d0eb0e815be7a86583af28ea71250ad88bed42bc303fe05",
+      "exit_code": 0
     },
     "B4.3": {
       "state": "not-run",
